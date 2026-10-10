@@ -163,7 +163,7 @@ export function AccountDialog() {
 
 const trError = (m: string) =>
   /invalid login/i.test(m)
-    ? 'E-posta ya da şifre hatalı.'
+    ? 'E-posta ya da şifre hatalı. Henüz hesabın yoksa aşağıdaki "Hesap oluştur" butonuna bas.'
     : /already registered/i.test(m)
       ? 'Bu e-posta ile zaten bir hesap var. Giriş yap.'
       : /not confirmed/i.test(m)
