@@ -129,6 +129,8 @@ interface AutoTextProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   onBlur?: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
+  id?: string;
 }
 
 /**
@@ -145,6 +147,8 @@ export function AutoText({
   textareaRef,
   onBlur,
   onKeyDown,
+  onPaste,
+  id,
 }: AutoTextProps) {
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = textareaRef ?? own;
@@ -155,9 +159,24 @@ export function AutoText({
     el.style.height = '0px';
     el.style.height = `${el.scrollHeight}px`;
   }, [value, ref]);
+  // Re-fit when the card gets narrower or wider (text wraps onto more or fewer lines).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let width = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      el.style.height = '0px';
+      el.style.height = `${el.scrollHeight}px`;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
   return (
     <textarea
       ref={ref}
+      id={id}
       className={`nodrag autotext ${className}`}
       value={value}
       placeholder={placeholder}
@@ -165,6 +184,7 @@ export function AutoText({
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
       onKeyDown={onKeyDown}
+      onPaste={onPaste}
     />
   );
 }

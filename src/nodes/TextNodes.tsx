@@ -121,12 +121,26 @@ export function TodoNode({ id, data, selected }: NodeProps<CardNode>) {
             <button className="nodrag check" onClick={() => patch(item.id, { done: !item.done })}>
               {item.done && '✓'}
             </button>
-            <input
+            {/* Wraps and grows, so long tasks stay readable. Enter adds the next task. */}
+            <AutoText
               id={`todo-${item.id}`}
-              className="nodrag"
+              className="todo-text"
               value={item.text}
               placeholder="Task"
-              onChange={(e) => patch(item.id, { text: e.target.value })}
+              onChange={(text) => patch(item.id, { text: text.replace(/\n/g, ' ') })}
+              onPaste={(e) => {
+                // Pasting several lines makes one task per line.
+                const lines = e.clipboardData
+                  .getData('text')
+                  .split(/\r?\n/)
+                  .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)]|\[[ x]\])\s*/i, '').trim())
+                  .filter(Boolean);
+                if (lines.length < 2) return;
+                e.preventDefault();
+                const extra = lines.slice(item.text ? 0 : 1).map((text) => ({ id: nanoid(6), text, done: false }));
+                const first = item.text ? item : { ...item, text: lines[0] };
+                setItems([...items.slice(0, idx), first, ...extra, ...items.slice(idx + 1)]);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();

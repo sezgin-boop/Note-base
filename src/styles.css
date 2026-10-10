@@ -1200,10 +1200,10 @@ a.side-btn {
 .card.ts-lg .card-title-input {
   font-size: 19px;
 }
-.card.ts-lg .todo-list input {
+.card.ts-lg .todo-list .todo-text {
   font-size: 15.5px;
 }
-.card.ts-sm .todo-list input {
+.card.ts-sm .todo-list .todo-text {
   font-size: 12.5px;
 }
 
@@ -1316,20 +1316,26 @@ a.side-btn {
 }
 .todo-list li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   padding: 4px 0;
 }
-.todo-list input {
+.todo-list .todo-text {
   flex: 1;
-  background: transparent;
-  border: 0;
-  outline: none;
-  font-size: 13.5px;
   min-width: 0;
-  color: var(--text-body);
+  min-height: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  word-break: break-word;
 }
-.todo-list li.done input {
+/* Line the checkbox and ✕ up with the first line of text. */
+.todo-list li .check {
+  margin-top: 1px;
+}
+.todo-list li .ghost-x {
+  margin-top: 2px;
+}
+.todo-list li.done .todo-text {
   color: var(--text-3);
   text-decoration: line-through;
   text-decoration-color: var(--text-3);
