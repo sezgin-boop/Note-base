@@ -480,6 +480,10 @@ a.side-btn { text-decoration: none; }
 .field input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; padding: 3px 0; color: var(--text-body); }
 .field input[type='date'] { color-scheme: inherit; }
 
+.scene-audio { display: flex; align-items: flex-start; gap: 7px; padding-top: 6px; border-top: 1px solid var(--border); color: var(--text-3); }
+.scene-audio svg { flex-shrink: 0; margin-top: 4px; }
+.scene-audio .autotext { font-size: 12.5px; color: var(--text-2); }
+
 /* Job */
 .status-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 6px; }
 .status-pill {

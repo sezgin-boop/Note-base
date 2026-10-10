@@ -107,7 +107,10 @@ export function useAutoFocus(ref: React.RefObject<HTMLInputElement | HTMLTextAre
   }, [enabled, ref]);
 }
 
-/** Auto-growing textarea that doesn't hijack canvas drag/zoom. */
+/**
+ * Auto-growing textarea that doesn't hijack canvas dragging. It never scrolls itself, so the mouse
+ * wheel keeps panning the canvas while the pointer is over text.
+ */
 export function AutoText({
   value,
   onChange,
@@ -132,7 +135,7 @@ export function AutoText({
   return (
     <textarea
       ref={ref}
-      className={`nodrag nowheel autotext ${className}`}
+      className={`nodrag autotext ${className}`}
       value={value}
       placeholder={placeholder}
       rows={1}

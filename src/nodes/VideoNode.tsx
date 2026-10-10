@@ -160,6 +160,12 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
 
   const canComment = !readOnly || !!shared?.allowComments;
   const [open, setOpen] = useState(rows.length > 0);
+  const commentsRef = useRef<HTMLDivElement>(null);
+  const [commentsScroll, setCommentsScroll] = useState(false);
+  useEffect(() => {
+    const el = commentsRef.current;
+    setCommentsScroll(!!el && el.scrollHeight > el.clientHeight + 1);
+  });
   const [draft, setDraft] = useState('');
   const [stamp, setStamp] = useState<number | null>(null);
   const [name, setName] = useState(() => localStorage.getItem('notebase:guestName') ?? '');
@@ -359,7 +365,11 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
           )}
           <Caption id={id} value={data.caption} />
           {open && (
-            <div className="comments nodrag nowheel">
+            <div
+              ref={commentsRef}
+              // Only capture the wheel when the list actually scrolls; otherwise the canvas pans.
+              className={`comments nodrag ${commentsScroll ? 'nowheel' : ''}`}
+            >
               {rows.map((r) => (
                 <div key={r.id} className={`comment ${r.done ? 'done' : ''}`}>
                   {r.t !== null ? (

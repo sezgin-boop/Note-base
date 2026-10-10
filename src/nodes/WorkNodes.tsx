@@ -1,5 +1,5 @@
 import type { NodeProps } from '@xyflow/react';
-import { Briefcase, Clapperboard, Copy, ImagePlus, LayoutDashboard, Palette, Sparkles } from 'lucide-react';
+import { Briefcase, Clapperboard, Copy, ImagePlus, LayoutDashboard, Palette, Sparkles, Volume2 } from 'lucide-react';
 import { saveMedia, useMediaUrl } from '../db';
 import { useRef, useState } from 'react';
 import { toast } from '../ui';
@@ -73,14 +73,9 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
         />
       </div>
       <AutoText value={data.text ?? ''} placeholder="What happens?" onChange={(text) => updateData(id, { text })} />
-      <div className="field">
-        <span>🔊</span>
-        <input
-          className="nodrag"
-          value={data.audio ?? ''}
-          placeholder="Sound / music / VO"
-          onChange={(e) => updateData(id, { audio: e.target.value })}
-        />
+      <div className="scene-audio">
+        <Volume2 size={13} />
+        <AutoText value={data.audio ?? ''} placeholder="Sound / music / VO" onChange={(audio) => updateData(id, { audio })} />
       </div>
       {data.prompt !== undefined ? (
         <div className="scene-prompt">
