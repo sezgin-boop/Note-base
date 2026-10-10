@@ -1,6 +1,7 @@
 // Notebase service worker: keeps the app shell available offline.
 // Board data lives in IndexedDB and syncs through Supabase, so only static files are cached here.
-const CACHE = 'notebase-shell-v1';
+// The build replaces __BUILD_ID__, so every deploy installs a fresh worker and cache.
+const CACHE = 'notebase-shell-__BUILD_ID__';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.webmanifest'])));
