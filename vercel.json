@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/s/:id/md", "destination": "/api/share?id=:id&format=md" },
+    { "source": "/s/:id/json", "destination": "/api/share?id=:id&format=json" },
+    { "source": "/s/:id", "destination": "/api/share?id=:id" }
+  ],
+  "headers": [
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+  ]
+}

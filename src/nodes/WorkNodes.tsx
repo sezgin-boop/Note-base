@@ -41,7 +41,13 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
       minWidth={200}
     >
       <div className="scene-thumb nodrag" onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}>
-        {src ? <img src={src} alt="" draggable={false} /> : <span><ImagePlus size={16} /> Kare ekle</span>}
+        {src ? (
+          <img src={src} alt="" draggable={false} />
+        ) : (
+          <span>
+            <ImagePlus size={16} /> Kare ekle
+          </span>
+        )}
       </div>
       <div className="scene-meta">
         <input
@@ -115,15 +121,30 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
       </div>
       <div className="field">
         <span>Müşteri</span>
-        <input className="nodrag" value={data.client ?? ''} placeholder="—" onChange={(e) => updateData(id, { client: e.target.value })} />
+        <input
+          className="nodrag"
+          value={data.client ?? ''}
+          placeholder="—"
+          onChange={(e) => updateData(id, { client: e.target.value })}
+        />
       </div>
       <div className="field">
         <span>Teslim</span>
-        <input className="nodrag" type="date" value={data.deadline ?? ''} onChange={(e) => updateData(id, { deadline: e.target.value })} />
+        <input
+          className="nodrag"
+          type="date"
+          value={data.deadline ?? ''}
+          onChange={(e) => updateData(id, { deadline: e.target.value })}
+        />
       </div>
       <div className="field">
         <span>Ücret</span>
-        <input className="nodrag" value={data.fee ?? ''} placeholder="—" onChange={(e) => updateData(id, { fee: e.target.value })} />
+        <input
+          className="nodrag"
+          value={data.fee ?? ''}
+          placeholder="—"
+          onChange={(e) => updateData(id, { fee: e.target.value })}
+        />
       </div>
       <AutoText value={data.text ?? ''} placeholder="Notlar" onChange={(text) => updateData(id, { text })} />
     </Shell>

@@ -12,25 +12,29 @@ import {
 import { useCallback, useEffect, useRef } from 'react';
 import { addTyped } from '../actions';
 import { isImageUrl, isVideoUrl, saveMedia } from '../db';
-import { ImageNode, LinkNode, VideoNode } from '../nodes/MediaNodes';
+import { ImageNode, LinkNode } from '../nodes/MediaNodes';
+import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
 import { useStore } from '../store';
+import { ContextMenu, withCardActions } from './ContextMenu';
 import type { CardNode, CardType } from '../types';
 
-const nodeTypes: NodeTypes = {
-  note: NoteNode,
-  heading: HeadingNode,
-  todo: TodoNode,
-  image: ImageNode,
-  video: VideoNode,
-  link: LinkNode,
-  board: BoardNode,
-  frame: FrameNode,
-  scene: SceneNode,
-  project: ProjectNode,
-  color: ColorNode,
-};
+const nodeTypes = Object.fromEntries(
+  Object.entries({
+    note: NoteNode,
+    heading: HeadingNode,
+    todo: TodoNode,
+    image: ImageNode,
+    video: VideoNode,
+    link: LinkNode,
+    board: BoardNode,
+    frame: FrameNode,
+    scene: SceneNode,
+    project: ProjectNode,
+    color: ColorNode,
+  }).map(([k, C]) => [k, withCardActions(C)]),
+) as NodeTypes;
 
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
@@ -68,8 +72,23 @@ export function useCreateFrom() {
 }
 
 export function Canvas() {
-  const { nodes, edges, viewport, currentId, onNodesChange, onEdgesChange, onConnect, addCard, setNodes, setViewport, checkpoint } =
-    useStore();
+  const {
+    nodes,
+    edges,
+    viewport,
+    currentId,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    addCard,
+    setNodes,
+    setViewport,
+    checkpoint,
+    readOnly,
+    background,
+    setMenu,
+    selectOnly,
+  } = useStore();
   const rf = useReactFlow();
   const { fromFiles, fromText } = useCreateFrom();
   const mouse = useRef<XYPosition>({ x: 0, y: 0 });
@@ -90,7 +109,7 @@ export function Canvas() {
   // Paste images, files, links or text straight onto the board.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      if (isTyping(e.target)) return;
+      if (isTyping(e.target) || useStore.getState().readOnly) return;
       const files = [...(e.clipboardData?.files ?? [])];
       const at = mouse.current;
       if (files.length) {
@@ -110,6 +129,7 @@ export function Canvas() {
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    if (readOnly) return;
     const at = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     const type = e.dataTransfer.getData('application/notebase') as CardType;
     if (type) {
@@ -161,7 +181,7 @@ export function Canvas() {
 
   return (
     <div
-      className="canvas"
+      className={`canvas ${readOnly ? 'read-only' : ''}`}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
@@ -169,7 +189,7 @@ export function Canvas() {
       onDrop={onDrop}
       onMouseMove={(e) => (mouse.current = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }))}
       onDoubleClick={(e) => {
-        if (!(e.target as HTMLElement).classList.contains('react-flow__pane')) return;
+        if (readOnly || !(e.target as HTMLElement).classList.contains('react-flow__pane')) return;
         const at = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
         addCard('note', { x: at.x - 130, y: at.y - 30 });
       }}
@@ -186,6 +206,26 @@ export function Canvas() {
         onNodeDrag={onNodeDrag}
         onNodeDragStop={() => frameChildren.current.clear()}
         onMoveEnd={(_, v) => setViewport(v)}
+        onNodeContextMenu={(e, node) => {
+          e.preventDefault();
+          if (!node.selected) selectOnly(node.id);
+          setMenu({ x: e.clientX, y: e.clientY, kind: 'node', id: node.id });
+        }}
+        onSelectionContextMenu={(e, sel) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY, kind: 'node', id: sel[0]?.id });
+        }}
+        onEdgeContextMenu={(e, edge) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY, kind: 'edge', id: edge.id });
+        }}
+        onPaneContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY, kind: 'pane', at: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
+        }}
+        nodesDraggable={!readOnly}
+        nodesConnectable={!readOnly}
+        edgesReconnectable={!readOnly}
         defaultViewport={viewport}
         fitView={!viewport}
         fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
@@ -202,7 +242,8 @@ export function Canvas() {
         defaultEdgeOptions={{ type: 'default', interactionWidth: 20 }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="var(--dots)" />
+        {background === 'dots' && <Background variant={BackgroundVariant.Dots} gap={22} size={1.7} color="var(--dots)" />}
+        {background === 'grid' && <Background variant={BackgroundVariant.Lines} gap={32} lineWidth={1} color="var(--grid)" />}
         <MiniMap
           pannable
           zoomable
@@ -213,6 +254,7 @@ export function Canvas() {
           nodeBorderRadius={6}
         />
       </ReactFlow>
+      <ContextMenu />
     </div>
   );
 }

@@ -1,4 +1,8 @@
-import { ChevronRight, PanelLeft, Search, X } from 'lucide-react';
+import { Bot, ChevronRight, Eye, PanelLeft, Search, Share2, X } from 'lucide-react';
+import { cloudConfigured } from '../cloud';
+import { useCloud } from '../sync';
+import { toast } from '../ui';
+import { boardMarkdown, SyncLabel } from './Dialogs';
 import { useEffect, useMemo, useState } from 'react';
 import { loadBoard } from '../db';
 import { DeadlineBadge, daysLeft } from '../nodes/WorkNodes';
@@ -8,7 +12,8 @@ import { STATUS_COLORS, STATUS_LABELS } from '../types';
 import { EmojiPicker } from './Sidebar';
 
 export function Topbar() {
-  const { boards, currentId, openBoard, renameBoard, toggleSidebar, nodes } = useStore();
+  const { boards, currentId, openBoard, renameBoard, toggleSidebar, nodes, readOnly, setPanel } = useStore();
+  const user = useCloud((c) => c.user);
   const path = boardPath(boards, currentId);
   const current = path.at(-1);
   const [picker, setPicker] = useState(false);
@@ -30,20 +35,51 @@ export function Topbar() {
               <button className="tree-icon" onClick={() => setPicker(true)}>
                 {current.icon}
               </button>
-              {picker && <EmojiPicker onPick={(icon) => renameBoard(current.id, { icon })} onClose={() => setPicker(false)} />}
+              {picker && !readOnly && (
+                <EmojiPicker onPick={(icon) => renameBoard(current.id, { icon })} onClose={() => setPicker(false)} />
+              )}
             </span>
             <input
               key={current.id}
               className="title-input"
               defaultValue={current.name}
+              readOnly={readOnly}
               size={Math.max(current.name.length, 6)}
-              onBlur={(e) => renameBoard(current.id, { name: e.target.value || current.name })}
+              onBlur={(e) => {
+                const name = e.target.value.trim();
+                if (name && name !== current.name) renameBoard(current.id, { name });
+              }}
               onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             />
           </span>
         )}
       </nav>
-      <span className="muted small">{nodes.length} kart · otomatik kaydedildi</span>
+      {readOnly ? (
+        <>
+          <span className="badge">
+            <Eye size={12} /> Salt okunur
+          </span>
+          <button
+            className="top-btn"
+            title="Panoyu yapay zekâ için metin olarak kopyala"
+            onClick={async () => {
+              await navigator.clipboard.writeText(await boardMarkdown(location.href));
+              toast('Pano metni kopyalandı');
+            }}
+          >
+            <Bot size={14} /> <span className="hide-sm">Metin olarak kopyala</span>
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="muted small status-text">
+            {nodes.length} kart · {cloudConfigured && user ? <SyncLabel /> : 'bu cihazda kayıtlı'}
+          </span>
+          <button className="top-btn" onClick={() => setPanel('share')}>
+            <Share2 size={14} /> <span className="hide-sm">Paylaş</span>
+          </button>
+        </>
+      )}
     </header>
   );
 }
@@ -53,13 +89,12 @@ function useAllCards() {
   const { boards, currentId, nodes } = useStore();
   const [stored, setStored] = useState<Record<string, CardNode[]>>({});
   useEffect(() => {
-    Promise.all(boards.map(async (b) => [b.id, (await loadBoard(b.id)).nodes] as const)).then((e) => setStored(Object.fromEntries(e)));
+    Promise.all(boards.map(async (b) => [b.id, (await loadBoard(b.id)).nodes] as const)).then((e) =>
+      setStored(Object.fromEntries(e)),
+    );
   }, [boards]);
   return useMemo(
-    () =>
-      boards.flatMap((b) =>
-        (b.id === currentId ? nodes : stored[b.id] ?? []).map((node) => ({ board: b, node })),
-      ),
+    () => boards.flatMap((b) => (b.id === currentId ? nodes : (stored[b.id] ?? [])).map((node) => ({ board: b, node }))),
     [boards, currentId, nodes, stored],
   );
 }
@@ -100,8 +135,8 @@ export function SearchPalette() {
             value={q}
             onChange={(e) => (setQ(e.target.value), setSel(0))}
             onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') (e.preventDefault(), setSel((s) => Math.min(s + 1, results.length - 1)));
-              if (e.key === 'ArrowUp') (e.preventDefault(), setSel((s) => Math.max(s - 1, 0)));
+              if (e.key === 'ArrowDown') e.preventDefault(), setSel((s) => Math.min(s + 1, results.length - 1));
+              if (e.key === 'ArrowUp') e.preventDefault(), setSel((s) => Math.max(s - 1, 0));
               if (e.key === 'Enter' && results[sel]) go(results[sel]);
               if (e.key === 'Escape') setPanel(null);
             }}
@@ -123,8 +158,17 @@ export function SearchPalette() {
 }
 
 const KIND: Record<string, string> = {
-  note: 'Not', heading: 'Başlık', todo: 'Liste', image: 'Görsel', video: 'Video', link: 'Link',
-  board: 'Pano', frame: 'Bölüm', scene: 'Sahne', project: 'İş', color: 'Renk',
+  note: 'Not',
+  heading: 'Başlık',
+  todo: 'Liste',
+  image: 'Görsel',
+  video: 'Video',
+  link: 'Link',
+  board: 'Pano',
+  frame: 'Bölüm',
+  scene: 'Sahne',
+  project: 'İş',
+  color: 'Renk',
 };
 const kindLabel = (n: CardNode) => KIND[n.type ?? 'note'];
 
@@ -156,14 +200,30 @@ export function JobsPanel() {
         </button>
       </div>
       <div className="stats">
-        <div><b>{active}</b><span>Aktif</span></div>
-        <div className={late ? 'bad' : ''}><b>{late}</b><span>Gecikmiş</span></div>
-        <div><b>{money(pending)}</b><span>Ödeme bekleyen</span></div>
-        <div><b>{money(earned)}</b><span>Tahsil edilen</span></div>
+        <div>
+          <b>{active}</b>
+          <span>Aktif</span>
+        </div>
+        <div className={late ? 'bad' : ''}>
+          <b>{late}</b>
+          <span>Gecikmiş</span>
+        </div>
+        <div>
+          <b>{money(pending)}</b>
+          <span>Ödeme bekleyen</span>
+        </div>
+        <div>
+          <b>{money(earned)}</b>
+          <span>Tahsil edilen</span>
+        </div>
       </div>
       <div className="seg">
-        <button className={filter === 'active' ? 'on' : ''} onClick={() => setFilter('active')}>Aktif</button>
-        <button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>Tümü</button>
+        <button className={filter === 'active' ? 'on' : ''} onClick={() => setFilter('active')}>
+          Aktif
+        </button>
+        <button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>
+          Tümü
+        </button>
       </div>
       <div className="job-list">
         {jobs.map(({ board, node }) => (
@@ -194,7 +254,8 @@ function JobRow({ board, node, onClick }: { board: BoardMeta; node: CardNode; on
       </div>
       <div className="muted small">
         {board.icon} {board.name}
-        {node.data.deadline && ` · ${new Date(node.data.deadline).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`}
+        {node.data.deadline &&
+          ` · ${new Date(node.data.deadline).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`}
       </div>
     </button>
   );

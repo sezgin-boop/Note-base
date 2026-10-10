@@ -9,9 +9,10 @@ import {
 } from '@xyflow/react';
 import { nanoid } from 'nanoid';
 import { create } from 'zustand';
+import { AUTO_HEIGHT, makeCard } from './cards';
+import type { RemoteComment, SharedBundle } from './cloud';
 import * as db from './db';
 import { buildTemplate, type TemplateId } from './templates';
-import { makeCard } from './cards';
 import type { BoardContent, BoardMeta, CardData, CardEdge, CardNode, CardType } from './types';
 
 interface Snapshot {
@@ -19,7 +20,24 @@ interface Snapshot {
   edges: CardEdge[];
 }
 
-export type Panel = 'jobs' | 'search' | null;
+export type Panel = 'jobs' | 'search' | 'share' | 'account' | 'install' | null;
+export type Background = 'dots' | 'grid' | 'none';
+
+export interface MenuState {
+  x: number;
+  y: number;
+  kind: 'node' | 'pane' | 'edge';
+  id?: string;
+  /** Flow position under the cursor (used to place new cards from the pane menu). */
+  at?: XYPosition;
+}
+
+/** A read-only board tree opened from a share link. */
+export interface SharedView {
+  shareId: string;
+  allowComments: boolean;
+  contents: Record<string, BoardContent>;
+}
 
 interface State {
   ready: boolean;
@@ -34,17 +52,26 @@ interface State {
   panel: Panel;
   sidebar: boolean;
   focusId: string | null;
+  menu: MenuState | null;
+  background: Background;
+  readOnly: boolean;
+  shared: SharedView | null;
+  /** Comments clients left through share links, for the open board, by card id. */
+  clientComments: Record<string, RemoteComment[]>;
 
   init: () => Promise<void>;
+  initShared: (bundle: SharedBundle, shareId: string) => Promise<void>;
   openBoard: (id: string) => Promise<void>;
+  reloadBoard: (id: string) => Promise<void>;
   createBoard: (opts: { name: string; parentId: string | null; icon?: string; template?: TemplateId }) => Promise<string>;
-  renameBoard: (id: string, patch: Partial<Pick<BoardMeta, 'name' | 'icon'>>) => void;
+  renameBoard: (id: string, patch: Partial<Pick<BoardMeta, 'name' | 'icon' | 'shareId' | 'shareComments'>>) => void;
   removeBoard: (id: string) => Promise<void>;
 
   onNodesChange: (changes: NodeChange<CardNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<CardEdge>[]) => void;
   onConnect: (c: Connection) => void;
   setNodes: (fn: (nodes: CardNode[]) => CardNode[]) => void;
+  setEdges: (fn: (edges: CardEdge[]) => CardEdge[]) => void;
   setViewport: (v: BoardContent['viewport']) => void;
 
   addCard: (type: CardType, position: XYPosition, data?: CardData) => CardNode;
@@ -52,11 +79,16 @@ interface State {
   checkpoint: () => void;
   undo: () => void;
   redo: () => void;
+  selectOnly: (id: string) => void;
   duplicateSelected: () => void;
   deleteSelected: () => void;
+  patchSelected: (fn: (n: CardNode) => CardNode) => void;
 
   setLightbox: (l: State['lightbox']) => void;
   setPanel: (p: Panel) => void;
+  setMenu: (m: MenuState | null) => void;
+  setBackground: (b: Background) => void;
+  setClientComments: (c: RemoteComment[]) => void;
   toggleSidebar: () => void;
   focusCard: (boardId: string, cardId: string | null) => Promise<void>;
 }
@@ -64,14 +96,22 @@ interface State {
 export const isPhone = () => window.matchMedia('(max-width: 720px)').matches;
 
 let pendingFocus: string | null = null;
-/** True once for a freshly added card, so its main field can grab keyboard focus. */
+/** True for a freshly added card, so its main field can grab keyboard focus. */
 export const takeFocus = (id: string) => pendingFocus === id;
+let createdAt = 0;
+/** Keystrokes right after adding a card belong to that card, not to the single-key shortcuts. */
+export const justCreated = () => Date.now() - createdAt < 600;
+
+/** Older boards stored fixed heights on auto-sizing cards; let them follow their content. */
+const normalize = (nodes: CardNode[]) =>
+  nodes.map((n) => (AUTO_HEIGHT.has(n.type as CardType) && n.height !== undefined ? { ...n, height: undefined } : n));
 
 let initPromise: Promise<void> | undefined;
 let lastDataCheckpoint = { id: '', at: 0 };
 
 export const useStore = create<State>((set, get) => {
   const snapshot = (): Snapshot => ({ nodes: get().nodes, edges: get().edges });
+  const editable = () => !get().readOnly;
 
   const collectDescendants = (id: string): string[] => {
     const kids = get().boards.filter((b) => b.parentId === id);
@@ -91,42 +131,80 @@ export const useStore = create<State>((set, get) => {
     // Phones start with the sidebar closed; desktop remembers the last choice.
     sidebar: isPhone() ? false : localStorage.getItem('notebase:sidebar') !== '0',
     focusId: null,
+    menu: null,
+    background: (localStorage.getItem('notebase:bg') as Background) || 'dots',
+    readOnly: false,
+    shared: null,
+    clientComments: {},
 
-    init: () => (initPromise ??= (async () => {
-      let boards = await db.loadIndex();
-      set({ boards });
-      if (!boards.length) {
-        // First run: a home board with a sample video project inside it.
-        const home = await get().createBoard({ name: 'Ana Pano', parentId: null, icon: '🏠', template: 'welcome' });
-        const sample = await get().createBoard({
-          name: 'Örnek: YouTube videosu',
-          parentId: home,
-          icon: '🎬',
-          template: 'video',
-        });
-        const content = await db.loadBoard(home);
-        content.nodes = content.nodes.map((n) => (n.type === 'board' ? { ...n, data: { ...n.data, boardId: sample } } : n));
-        await db.saveBoard(home, content);
-        boards = get().boards;
-      }
-      const last = localStorage.getItem('notebase:last');
-      const start = boards.find((b) => b.id === last) ?? boards.find((b) => !b.parentId) ?? boards[0];
-      await get().openBoard(start.id);
+    init: () =>
+      (initPromise ??= (async () => {
+        let boards = await db.loadIndex();
+        set({ boards });
+        if (!boards.length) {
+          // First run: a home board with a sample video project inside it.
+          const home = await get().createBoard({ name: 'Ana Pano', parentId: null, icon: '🏠', template: 'welcome' });
+          const sample = await get().createBoard({
+            name: 'Örnek: YouTube videosu',
+            parentId: home,
+            icon: '🎬',
+            template: 'video',
+          });
+          const content = await db.loadBoard(home);
+          content.nodes = content.nodes.map((n) => (n.type === 'board' ? { ...n, data: { ...n.data, boardId: sample } } : n));
+          await db.saveBoard(home, content);
+          boards = get().boards;
+        }
+        const last = localStorage.getItem('notebase:last');
+        const start = boards.find((b) => b.id === last) ?? boards.find((b) => !b.parentId) ?? boards[0];
+        await get().openBoard(start.id);
+        set({ ready: true });
+      })()),
+
+    initShared: async (bundle, shareId) => {
+      const contents = Object.fromEntries(bundle.boards.map((b) => [b.id, b.content ?? { nodes: [], edges: [] }]));
+      const boards: BoardMeta[] = bundle.boards.map(({ content, ...meta }) => ({
+        ...meta,
+        // The shared board is the root of what the viewer sees.
+        parentId: meta.id === bundle.root ? null : meta.parentId,
+      }));
+      const clientComments: Record<string, RemoteComment[]> = {};
+      for (const c of bundle.comments) (clientComments[c.nodeId] ??= []).push(c);
+      set({ readOnly: true, shared: { shareId, allowComments: bundle.allowComments, contents }, boards, clientComments });
+      await get().openBoard(bundle.root);
       set({ ready: true });
-    })()),
+    },
 
     openBoard: async (id) => {
-      const content = await db.loadBoard(id);
-      localStorage.setItem('notebase:last', id);
+      const shared = get().shared;
+      const content = shared ? (shared.contents[id] ?? { nodes: [], edges: [] }) : await db.loadBoard(id);
+      if (!shared) localStorage.setItem('notebase:last', id);
       pendingFocus = null;
       set({
         currentId: id,
-        nodes: content.nodes,
+        nodes: normalize(content.nodes),
         edges: content.edges,
-        viewport: content.viewport,
+        viewport: shared ? undefined : content.viewport,
         past: [],
         future: [],
+        menu: null,
+        ...(shared ? {} : { clientComments: {} }),
       });
+    },
+
+    reloadBoard: async (id) => {
+      if (id !== get().currentId) return;
+      const content = await db.loadBoard(id);
+      const selected = new Set(
+        get()
+          .nodes.filter((n) => n.selected)
+          .map((n) => n.id),
+      );
+      set({
+        nodes: normalize(content.nodes).map((n) => (selected.has(n.id) ? { ...n, selected: true } : n)),
+        edges: content.edges,
+      });
+      markSaved(id, get().nodes, get().edges);
     },
 
     createBoard: async ({ name, parentId, icon = '📁', template }) => {
@@ -140,7 +218,8 @@ export const useStore = create<State>((set, get) => {
     },
 
     renameBoard: (id, patch) => {
-      const boards = get().boards.map((b) => (b.id === id ? { ...b, ...patch } : b));
+      if (!editable()) return;
+      const boards = get().boards.map((b) => (b.id === id ? { ...b, ...patch, updatedAt: Date.now() } : b));
       set({ boards });
       db.saveIndex(boards);
     },
@@ -149,7 +228,7 @@ export const useStore = create<State>((set, get) => {
       const ids = new Set(collectDescendants(id));
       const parent = get().boards.find((b) => b.id === id)?.parentId ?? null;
       const boards = get().boards.filter((b) => !ids.has(b.id));
-      await Promise.all([...ids].map(db.deleteBoard));
+      await Promise.all([...ids].map((i) => db.deleteBoard(i)));
       await db.saveIndex(boards);
       set({ boards });
       if (ids.has(get().currentId)) {
@@ -163,29 +242,39 @@ export const useStore = create<State>((set, get) => {
     },
 
     onNodesChange: (changes) => {
+      // Viewers may select and measure cards, nothing else.
+      if (!editable()) changes = changes.filter((c) => c.type === 'select' || c.type === 'dimensions');
       if (changes.some((c) => c.type === 'remove')) get().checkpoint();
-      set({ nodes: applyNodeChanges(changes, get().nodes) });
+      let nodes = applyNodeChanges(changes, get().nodes);
+      if (changes.some((c) => c.type === 'dimensions')) nodes = normalize(nodes);
+      set({ nodes });
     },
     onEdgesChange: (changes) => {
+      if (!editable()) changes = changes.filter((c) => c.type === 'select');
       if (changes.some((c) => c.type === 'remove')) get().checkpoint();
       set({ edges: applyEdgeChanges(changes, get().edges) });
     },
     onConnect: (c) => {
+      if (!editable()) return;
       get().checkpoint();
       set({ edges: addEdge({ ...c, id: nanoid(10) }, get().edges) });
     },
     setNodes: (fn) => set({ nodes: fn(get().nodes) }),
+    setEdges: (fn) => editable() && set({ edges: fn(get().edges) }),
     setViewport: (viewport) => set({ viewport }),
 
     addCard: (type, position, data) => {
-      get().checkpoint();
       const node = { ...makeCard(type, position, data), selected: true };
+      if (!editable()) return node;
+      get().checkpoint();
       pendingFocus = node.id;
+      createdAt = Date.now();
       set({ nodes: [...get().nodes.map((n) => ({ ...n, selected: false })), node] });
       return node;
     },
 
     updateData: (id, patch) => {
+      if (!editable()) return;
       // Group rapid edits (typing) on the same card into a single undo step.
       const now = Date.now();
       if (lastDataCheckpoint.id !== id || now - lastDataCheckpoint.at > 1500) get().checkpoint();
@@ -197,19 +286,24 @@ export const useStore = create<State>((set, get) => {
     undo: () => {
       const { past, future } = get();
       const prev = past.at(-1);
-      if (!prev) return;
+      if (!prev || !editable()) return;
       set({ ...prev, past: past.slice(0, -1), future: [snapshot(), ...future] });
     },
     redo: () => {
       const { past, future } = get();
       const next = future[0];
-      if (!next) return;
+      if (!next || !editable()) return;
       set({ ...next, past: [...past, snapshot()], future: future.slice(1) });
     },
 
+    selectOnly: (id) =>
+      set({
+        nodes: get().nodes.map((n) => (n.selected === (n.id === id) ? n : { ...n, selected: n.id === id })),
+        edges: get().edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+      }),
     duplicateSelected: () => {
       const selected = get().nodes.filter((n) => n.selected);
-      if (!selected.length) return;
+      if (!selected.length || !editable()) return;
       get().checkpoint();
       const copies = selected.map((n) => ({
         ...structuredClone(n),
@@ -220,17 +314,38 @@ export const useStore = create<State>((set, get) => {
       set({ nodes: [...get().nodes.map((n) => ({ ...n, selected: false })), ...copies] });
     },
     deleteSelected: () => {
-      const ids = new Set(get().nodes.filter((n) => n.selected).map((n) => n.id));
+      if (!editable()) return;
+      const ids = new Set(
+        get()
+          .nodes.filter((n) => n.selected)
+          .map((n) => n.id),
+      );
       if (!ids.size && !get().edges.some((e) => e.selected)) return;
       get().checkpoint();
       set({
         nodes: get().nodes.filter((n) => !ids.has(n.id)),
         edges: get().edges.filter((e) => !e.selected && !ids.has(e.source) && !ids.has(e.target)),
+        menu: null,
       });
+    },
+    patchSelected: (fn) => {
+      if (!editable()) return;
+      get().checkpoint();
+      set({ nodes: get().nodes.map((n) => (n.selected ? fn(n) : n)) });
     },
 
     setLightbox: (lightbox) => set({ lightbox }),
     setPanel: (panel) => set({ panel }),
+    setMenu: (menu) => set({ menu }),
+    setBackground: (background) => {
+      localStorage.setItem('notebase:bg', background);
+      set({ background });
+    },
+    setClientComments: (list) => {
+      const clientComments: Record<string, RemoteComment[]> = {};
+      for (const c of list) (clientComments[c.nodeId] ??= []).push(c);
+      set({ clientComments });
+    },
     toggleSidebar: () => {
       if (!isPhone()) localStorage.setItem('notebase:sidebar', get().sidebar ? '0' : '1');
       set({ sidebar: !get().sidebar });
@@ -242,24 +357,43 @@ export const useStore = create<State>((set, get) => {
   };
 });
 
-// Persist the open board shortly after any change.
+// ---------- Persistence ----------
+
+const cleanNodes = (nodes: CardNode[]) => nodes.map(({ selected, dragging, resizing, ...n }) => n as CardNode);
+const cleanEdges = (edges: CardEdge[]) => edges.map(({ selected, ...e }) => e);
+// Measured sizes differ slightly between devices, so they don't count as edits.
+const contentKey = (nodes: CardNode[], edges: CardEdge[]) =>
+  JSON.stringify([cleanNodes(nodes).map(({ measured, ...n }) => n), cleanEdges(edges)]);
+const lastSaved = new Map<string, string>();
+const markSaved = (id: string, nodes: CardNode[], edges: CardEdge[]) => lastSaved.set(id, contentKey(nodes, edges));
+
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Whether the given board has edits that haven't been written to IndexedDB yet. */
+export const hasPendingSave = (id: string) => saveTimers.has(id);
+
 useStore.subscribe((s, prev) => {
-  if (!s.ready || !s.currentId) return;
-  if (s.currentId !== prev.currentId) return;
+  if (s.currentId !== prev.currentId) return markSaved(s.currentId, s.nodes, s.edges);
+  if (!s.ready || !s.currentId || s.readOnly) return;
   if (s.nodes === prev.nodes && s.edges === prev.edges && s.viewport === prev.viewport) return;
-  const { currentId, nodes, edges, viewport } = s;
+  const { currentId } = s;
   clearTimeout(saveTimers.get(currentId));
-  saveTimers.set(currentId, setTimeout(() => {
-    saveTimers.delete(currentId);
-    const clean = nodes.map(({ selected, dragging, ...n }) => n as CardNode);
-    db.saveBoard(currentId, { nodes: clean, edges: edges.map(({ selected, ...e }) => e), viewport });
-    if (s.nodes !== prev.nodes || s.edges !== prev.edges) {
+  saveTimers.set(
+    currentId,
+    setTimeout(async () => {
+      saveTimers.delete(currentId);
+      const { nodes, edges, viewport, currentId: open } = useStore.getState();
+      if (open !== currentId) return;
+      const clean = { nodes: cleanNodes(nodes), edges: cleanEdges(edges) };
+      await db.saveBoard(currentId, { ...clean, viewport });
+      // Only real content changes (not selection or panning) count as an edit.
+      const json = contentKey(nodes, edges);
+      if (lastSaved.get(currentId) === json) return;
+      lastSaved.set(currentId, json);
       const boards = useStore.getState().boards.map((b) => (b.id === currentId ? { ...b, updatedAt: Date.now() } : b));
       useStore.setState({ boards });
       db.saveIndex(boards);
-    }
-  }, 400));
+    }, 400),
+  );
 });
 
 export const boardPath = (boards: BoardMeta[], id: string): BoardMeta[] => {

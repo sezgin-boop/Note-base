@@ -43,7 +43,12 @@ export function NoteNode({ id, data, selected }: NodeProps<CardNode>) {
         placeholder="Başlık"
         onChange={(e) => updateData(id, { title: e.target.value })}
       />
-      <AutoText autoFocus={focus} value={data.text ?? ''} placeholder="Bir şeyler yaz…" onChange={(text) => updateData(id, { text })} />
+      <AutoText
+        autoFocus={focus}
+        value={data.text ?? ''}
+        placeholder="Bir şeyler yaz…"
+        onChange={(text) => updateData(id, { text })}
+      />
     </Shell>
   );
 }
@@ -53,7 +58,13 @@ export function HeadingNode({ id, data, selected }: NodeProps<CardNode>) {
   const [focus] = useState(() => takeFocus(id));
   return (
     <div className={`heading-card ${selected ? 'is-selected' : ''}`}>
-      <AutoText autoFocus={focus} className="heading-text" value={data.text ?? ''} placeholder="Başlık" onChange={(text) => updateData(id, { text })} />
+      <AutoText
+        autoFocus={focus}
+        className="heading-text"
+        value={data.text ?? ''}
+        placeholder="Başlık"
+        onChange={(text) => updateData(id, { text })}
+      />
       <Handles />
     </div>
   );
@@ -82,7 +93,15 @@ export function TodoNode({ id, data, selected }: NodeProps<CardNode>) {
       selected={selected}
       color={data.color}
       resizable="width"
-      actions={selected ? <AccentPicker id={id} value={data.color} /> : <span className="muted">{done}/{items.length}</span>}
+      actions={
+        selected ? (
+          <AccentPicker id={id} value={data.color} />
+        ) : (
+          <span className="muted">
+            {done}/{items.length}
+          </span>
+        )
+      }
     >
       <input
         ref={titleRef}

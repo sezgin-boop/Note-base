@@ -28,17 +28,23 @@ const todos = (...texts: string[]) => texts.map((text) => ({ id: nanoid(6), text
 
 function welcome(): BoardContent {
   const head = card('heading', 0, 0, { text: 'Hoş geldin 👋' }, { width: 520 });
-  const intro = card('note', 0, 90, {
-    color: '#a78bfa',
-    title: 'Notebase nasıl çalışır?',
-    text:
-      'Burası sonsuz bir tuval. Notlarını, planlarını, görsellerini ve videolarını istediğin gibi yerleştir.\n\n' +
-      '• Alttaki araç çubuğundan kart ekle ya da tuvale çift tıkla\n' +
-      '• Dosyaları (resim / video) direkt sürükle bırak ya da yapıştır (⌘V)\n' +
-      '• Kartların kenarındaki noktalardan tutup başka karta bağla\n' +
-      '• Pano kartına çift tıklayıp içine gir — panoların içinde pano olabilir\n' +
-      '• ⌘K ile tüm panolarda ara, ⌘Z / ⇧⌘Z geri al / yinele',
-  }, { width: 340 });
+  const intro = card(
+    'note',
+    0,
+    90,
+    {
+      color: '#a78bfa',
+      title: 'Notebase nasıl çalışır?',
+      text:
+        'Burası sonsuz bir tuval. Notlarını, planlarını, görsellerini ve videolarını istediğin gibi yerleştir.\n\n' +
+        '• Alttaki araç çubuğundan kart ekle ya da tuvale çift tıkla\n' +
+        '• Dosyaları (resim / video) direkt sürükle bırak ya da yapıştır (⌘V)\n' +
+        '• Kartların kenarındaki noktalardan tutup başka karta bağla\n' +
+        '• Pano kartına çift tıklayıp içine gir — panoların içinde pano olabilir\n' +
+        '• ⌘K ile tüm panolarda ara, ⌘Z / ⇧⌘Z geri al / yinele',
+    },
+    { width: 340 },
+  );
   const sample = card('board', 475, 70, {});
   const today = card('todo', 420, 250, {
     title: 'Bugün',
@@ -73,15 +79,39 @@ function video(): BoardContent {
   const audience = card('note', 24, 250, { title: 'Hedef kitle', text: 'Kim izleyecek? Neden şimdi?' }, { width: 550 });
 
   const f2 = card('frame', 680, 0, { title: '2 · Senaryo', color: '#38bdf8' }, { width: 340, height: 400 });
-  const script = card('note', 704, 60, {
-    title: 'Akış',
-    text: '00:00 Hook\n00:05 Giriş / bağlam\n00:30 Ana bölüm 1\n02:00 Ana bölüm 2\n04:00 Sonuç\n04:30 CTA — abone ol / yorum',
-  }, { width: 290 });
+  const script = card(
+    'note',
+    704,
+    60,
+    {
+      title: 'Akış',
+      text: '00:00 Hook\n00:05 Giriş / bağlam\n00:30 Ana bölüm 1\n02:00 Ana bölüm 2\n04:00 Sonuç\n04:30 CTA — abone ol / yorum',
+    },
+    { width: 290 },
+  );
 
   const f3 = card('frame', 0, 480, { title: '3 · Storyboard', color: '#34d399' }, { width: 900, height: 330 });
-  const s1 = card('scene', 24, 540, { number: 1, shot: 'Yakın', duration: '3s', text: 'Hook — yüze yakın, direkt kameraya', audio: 'VO + whoosh' });
-  const s2 = card('scene', 314, 540, { number: 2, shot: 'Geniş', duration: '8s', text: 'Mekânı tanıt, establishing', audio: 'Müzik girer' });
-  const s3 = card('scene', 604, 540, { number: 3, shot: 'B-roll', duration: '12s', text: 'Detay planları, eller, ekipman', audio: 'Müzik' });
+  const s1 = card('scene', 24, 540, {
+    number: 1,
+    shot: 'Yakın',
+    duration: '3s',
+    text: 'Hook — yüze yakın, direkt kameraya',
+    audio: 'VO + whoosh',
+  });
+  const s2 = card('scene', 314, 540, {
+    number: 2,
+    shot: 'Geniş',
+    duration: '8s',
+    text: 'Mekânı tanıt, establishing',
+    audio: 'Müzik girer',
+  });
+  const s3 = card('scene', 604, 540, {
+    number: 3,
+    shot: 'B-roll',
+    duration: '12s',
+    text: 'Detay planları, eller, ekipman',
+    audio: 'Müzik',
+  });
 
   const f4 = card('frame', 980, 480, { title: '4 · Moodboard', color: '#f472b6' }, { width: 480, height: 330 });
   const c1 = card('color', 1004, 540, { hex: '#0f172a', title: 'Gece mavisi' });
@@ -95,7 +125,15 @@ function video(): BoardContent {
   });
   const post = card('todo', 1400, 0, {
     title: '✂️ Kurgu & teslim',
-    items: todos('Kaba kurgu', 'Ses temizliği + müzik', 'Renk düzenleme', 'Altyazı', 'Thumbnail', 'Başlık + açıklama + etiketler', 'Yükle & planla'),
+    items: todos(
+      'Kaba kurgu',
+      'Ses temizliği + müzik',
+      'Renk düzenleme',
+      'Altyazı',
+      'Thumbnail',
+      'Başlık + açıklama + etiketler',
+      'Yükle & planla',
+    ),
   });
 
   return {
@@ -141,11 +179,17 @@ function client(): BoardContent {
     status: 'brief',
     text: '',
   });
-  const brief = card('note', 360, 0, {
-    color: '#38bdf8',
-    title: 'Brief',
-    text: 'Amaç:\nHedef kitle:\nMesaj:\nFormat / süre:\nReferanslar:',
-  }, { width: 300 });
+  const brief = card(
+    'note',
+    360,
+    0,
+    {
+      color: '#38bdf8',
+      title: 'Brief',
+      text: 'Amaç:\nHedef kitle:\nMesaj:\nFormat / süre:\nReferanslar:',
+    },
+    { width: 300 },
+  );
   const deliver = card('todo', 720, 0, {
     title: 'Teslimatlar',
     items: todos('16:9 master', '9:16 reels / shorts', '1:1 kesit', 'Altyazılı versiyon', 'Proje dosyaları'),

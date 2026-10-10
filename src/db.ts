@@ -1,23 +1,43 @@
 import { del, get, keys, set } from 'idb-keyval';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
+import { cloudConfigured, mediaPublicUrl } from './cloud';
 import type { BoardContent, BoardMeta } from './types';
 
-// Everything lives in the browser's IndexedDB: board index, board contents and media blobs.
+// The browser's IndexedDB is the primary store (works offline): board index, board
+// contents and media blobs. The cloud sync listens to `dbEvents` and mirrors changes.
+
+export const dbEvents = new EventTarget();
+const emit = (type: string, id?: string) => dbEvents.dispatchEvent(new CustomEvent(type, { detail: id }));
 
 export const loadIndex = async () => (await get<BoardMeta[]>('boards')) ?? [];
-export const saveIndex = (boards: BoardMeta[]) => set('boards', boards);
+export const saveIndex = async (boards: BoardMeta[], silent = false) => {
+  await set('boards', boards);
+  if (!silent) emit('index');
+};
 
 export const loadBoard = async (id: string): Promise<BoardContent> =>
   (await get<BoardContent>(`board:${id}`)) ?? { nodes: [], edges: [] };
+export const hasBoard = async (id: string) => (await get(`board:${id}`)) !== undefined;
 export const saveBoard = (id: string, content: BoardContent) => set(`board:${id}`, content);
-export const deleteBoard = (id: string) => del(`board:${id}`);
+export const deleteBoard = async (id: string, silent = false) => {
+  await del(`board:${id}`);
+  if (!silent) emit('delete', id);
+};
 
 export async function saveMedia(file: Blob): Promise<string> {
-  const id = nanoid(12);
+  const id = nanoid(21);
   await set(`media:${id}`, file);
+  emit('media', id);
   return id;
 }
+
+export const getMediaBlob = (id: string) => get<Blob>(`media:${id}`);
+export const mediaKeys = async () =>
+  (await keys())
+    .map(String)
+    .filter((k) => k.startsWith('media:'))
+    .map((k) => k.slice(6));
 
 const urlCache = new Map<string, string>();
 
@@ -25,14 +45,15 @@ export async function getMediaUrl(id: string): Promise<string | null> {
   const cached = urlCache.get(id);
   if (cached) return cached;
   const blob = await get<Blob>(`media:${id}`);
-  if (!blob) return null;
+  // Not on this device (added elsewhere or in a shared board): use the cloud copy.
+  if (!blob) return cloudConfigured ? mediaPublicUrl(id) : null;
   const url = URL.createObjectURL(blob);
   urlCache.set(id, url);
   return url;
 }
 
 export function useMediaUrl(mediaId?: string, url?: string) {
-  const [src, setSrc] = useState<string | null>(url ?? (mediaId ? urlCache.get(mediaId) ?? null : null));
+  const [src, setSrc] = useState<string | null>(url ?? (mediaId ? (urlCache.get(mediaId) ?? null) : null));
   useEffect(() => {
     if (url) return setSrc(url);
     if (!mediaId) return setSrc(null);

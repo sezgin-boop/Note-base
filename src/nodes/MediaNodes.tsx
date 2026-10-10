@@ -1,7 +1,7 @@
 import type { NodeProps } from '@xyflow/react';
-import { ExternalLink, Image as ImageIcon, Link2, Maximize2, Upload, Video } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon, Link2, Maximize2, Upload } from 'lucide-react';
 import { useState } from 'react';
-import { embedUrl, hostname, saveMedia, useMediaUrl, youtubeId } from '../db';
+import { hostname, saveMedia, useMediaUrl, youtubeId } from '../db';
 import { useStore } from '../store';
 import type { CardNode } from '../types';
 import { Shell } from './Shell';
@@ -16,7 +16,7 @@ export function pickFile(accept: string): Promise<File | null> {
   });
 }
 
-function EmptyMedia({ id, kind }: { id: string; kind: 'image' | 'video' }) {
+export function EmptyMedia({ id, kind }: { id: string; kind: 'image' | 'video' }) {
   const updateData = useStore((s) => s.updateData);
   const [url, setUrl] = useState('');
   const upload = async () => {
@@ -40,7 +40,7 @@ function EmptyMedia({ id, kind }: { id: string; kind: 'image' | 'video' }) {
   );
 }
 
-function Caption({ id, value }: { id: string; value?: string }) {
+export function Caption({ id, value }: { id: string; value?: string }) {
   const updateData = useStore((s) => s.updateData);
   return (
     <input
@@ -82,46 +82,6 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
         </>
       ) : (
         <EmptyMedia id={id} kind="image" />
-      )}
-    </Shell>
-  );
-}
-
-export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
-  const src = useMediaUrl(data.mediaId, data.url);
-  const setLightbox = useStore((s) => s.setLightbox);
-  const embed = data.url ? embedUrl(data.url) : null;
-  const has = data.mediaId || data.url;
-  return (
-    <Shell
-      icon={<Video size={12} />}
-      label="Video"
-      selected={selected}
-      resizable
-      minWidth={160}
-      minHeight={110}
-      className="media-card"
-      actions={
-        src && !embed && (
-          <button className="nodrag icon-btn" title="Büyüt" onClick={() => setLightbox({ src, kind: 'video' })}>
-            <Maximize2 size={12} />
-          </button>
-        )
-      }
-    >
-      {has ? (
-        <>
-          <div className="media-frame nodrag">
-            {embed ? (
-              <iframe src={embed} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
-            ) : (
-              src && <video src={src} controls preload="metadata" />
-            )}
-          </div>
-          <Caption id={id} value={data.caption} />
-        </>
-      ) : (
-        <EmptyMedia id={id} kind="video" />
       )}
     </Shell>
   );

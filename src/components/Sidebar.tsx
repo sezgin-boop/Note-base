@@ -1,11 +1,39 @@
-import { Briefcase, ChevronRight, Download, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Briefcase, ChevronRight, Cloud, CloudOff, Download, Plus, Search, Smartphone, Trash2, Upload } from 'lucide-react';
+import { cloudConfigured } from '../cloud';
+import { useCloud } from '../sync';
+import { SyncLabel, useCanInstall } from './Dialogs';
 import { useState } from 'react';
 import { exportWorkspace, importWorkspace } from '../db';
 import { isPhone, useStore } from '../store';
 import { TEMPLATES, type TemplateId } from '../templates';
 import type { BoardMeta } from '../types';
 
-const EMOJIS = ['📁', '🏠', '🎬', '🎥', '✂️', '🎨', '💡', '🗓️', '💼', '📸', '🎵', '🚀', '📝', '⭐', '🔥', '🌙', '🧠', '📦', '🎯', '💰', '📣', '🛠️', '🌈', '🍿'];
+const EMOJIS = [
+  '📁',
+  '🏠',
+  '🎬',
+  '🎥',
+  '✂️',
+  '🎨',
+  '💡',
+  '🗓️',
+  '💼',
+  '📸',
+  '🎵',
+  '🚀',
+  '📝',
+  '⭐',
+  '🔥',
+  '🌙',
+  '🧠',
+  '📦',
+  '🎯',
+  '💰',
+  '📣',
+  '🛠️',
+  '🌈',
+  '🍿',
+];
 
 export function EmojiPicker({ onPick, onClose }: { onPick: (e: string) => void; onClose: () => void }) {
   return (
@@ -23,7 +51,7 @@ export function EmojiPicker({ onPick, onClose }: { onPick: (e: string) => void; 
 }
 
 function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
-  const { boards, currentId, openBoard, renameBoard, removeBoard } = useStore();
+  const { boards, currentId, openBoard, renameBoard, removeBoard, readOnly } = useStore();
   const children = boards.filter((b) => b.parentId === board.id);
   const [open, setOpen] = useState(depth === 0);
   const [editing, setEditing] = useState(false);
@@ -38,7 +66,7 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
           openBoard(board.id);
           if (isPhone()) useStore.getState().toggleSidebar();
         }}
-        onDoubleClick={() => setEditing(true)}
+        onDoubleClick={() => !readOnly && setEditing(true)}
       >
         <button
           className={`chev ${open ? 'open' : ''} ${children.length ? '' : 'hidden'}`}
@@ -47,7 +75,7 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
           <ChevronRight size={12} />
         </button>
         <span className="tree-icon-wrap">
-          <button className="tree-icon" onClick={(e) => (e.stopPropagation(), setPicker(true))}>
+          <button className="tree-icon" onClick={(e) => (e.stopPropagation(), !readOnly && setPicker(true))}>
             {board.icon}
           </button>
           {picker && <EmojiPicker onPick={(icon) => renameBoard(board.id, { icon })} onClose={() => setPicker(false)} />}
@@ -58,23 +86,29 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
             className="tree-input"
             defaultValue={board.name}
             onClick={(e) => e.stopPropagation()}
-            onBlur={(e) => (renameBoard(board.id, { name: e.target.value || board.name }), setEditing(false))}
+            onBlur={(e) => {
+              const name = e.target.value.trim();
+              if (name && name !== board.name) renameBoard(board.id, { name });
+              setEditing(false);
+            }}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           />
         ) : (
           <span className="tree-name">{board.name}</span>
         )}
-        <button
-          className="tree-del"
-          title="Panoyu sil"
-          onClick={(e) => {
-            e.stopPropagation();
-            const sub = children.length ? ' ve tüm alt panoları' : '';
-            if (confirm(`"${board.name}"${sub} silinsin mi? Bu geri alınamaz.`)) removeBoard(board.id);
-          }}
-        >
-          <Trash2 size={12} />
-        </button>
+        {!readOnly && (
+          <button
+            className="tree-del"
+            title="Panoyu sil"
+            onClick={(e) => {
+              e.stopPropagation();
+              const sub = children.length ? ' ve tüm alt panoları' : '';
+              if (confirm(`"${board.name}"${sub} silinsin mi? Bu geri alınamaz.`)) removeBoard(board.id);
+            }}
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
       </div>
       {open && children.map((c) => <TreeItem key={c.id} board={c} depth={depth + 1} />)}
     </>
@@ -82,8 +116,10 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
 }
 
 export function Sidebar() {
-  const { boards, createBoard, openBoard, setPanel, panel } = useStore();
+  const { boards, createBoard, openBoard, setPanel, panel, readOnly } = useStore();
   const [menu, setMenu] = useState(false);
+  const user = useCloud((c) => c.user);
+  const canInstall = useCanInstall();
   const roots = boards.filter((b) => !b.parentId);
 
   const newBoard = async (template?: TemplateId, name = 'Yeni pano', icon = '📁') => {
@@ -132,18 +168,27 @@ export function Sidebar() {
         Notebase
       </div>
 
-      <button className="side-btn" onClick={() => setPanel(panel === 'search' ? null : 'search')}>
-        <Search size={15} /> Ara <kbd>⌘K</kbd>
-      </button>
-      <button className={`side-btn ${panel === 'jobs' ? 'on' : ''}`} onClick={() => setPanel(panel === 'jobs' ? null : 'jobs')}>
-        <Briefcase size={15} /> İşlerim <kbd>⌘J</kbd>
-      </button>
+      {!readOnly && (
+        <>
+          <button className="side-btn" onClick={() => setPanel(panel === 'search' ? null : 'search')}>
+            <Search size={15} /> Ara <kbd>⌘K</kbd>
+          </button>
+          <button
+            className={`side-btn ${panel === 'jobs' ? 'on' : ''}`}
+            onClick={() => setPanel(panel === 'jobs' ? null : 'jobs')}
+          >
+            <Briefcase size={15} /> İşlerim <kbd>⌘J</kbd>
+          </button>
+        </>
+      )}
 
       <div className="side-section">
         <span>Panolar</span>
-        <button className="icon-btn" title="Yeni pano" onClick={() => setMenu(!menu)}>
-          <Plus size={14} />
-        </button>
+        {!readOnly && (
+          <button className="icon-btn" title="Yeni pano" onClick={() => setMenu(!menu)}>
+            <Plus size={14} />
+          </button>
+        )}
       </div>
       {menu && (
         <div className="template-menu">
@@ -171,14 +216,34 @@ export function Sidebar() {
         ))}
       </div>
 
-      <div className="side-footer">
-        <button className="side-btn" onClick={doExport} title="Tüm panoları ve medyayı tek dosyaya yedekle">
-          <Download size={14} /> Yedekle
-        </button>
-        <button className="side-btn" onClick={doImport} title="Yedek dosyasını geri yükle">
-          <Upload size={14} /> Geri yükle
-        </button>
-      </div>
+      {readOnly ? (
+        <a className="side-btn" href="/" target="_blank" rel="noreferrer">
+          ✨ Kendi panonu oluştur
+        </a>
+      ) : (
+        <>
+          <button className="side-btn cloud-btn" onClick={() => setPanel('account')}>
+            {user ? <Cloud size={15} /> : <CloudOff size={15} />}
+            <span className="cloud-text">
+              {user ? user.email : 'Bulut senkronu'}
+              <small>{user ? <SyncLabel /> : cloudConfigured ? 'Giriş yap — her cihazda aynı' : 'Kapalı'}</small>
+            </span>
+          </button>
+          {canInstall && (
+            <button className="side-btn" onClick={() => setPanel('install')}>
+              <Smartphone size={15} /> Uygulama olarak yükle
+            </button>
+          )}
+          <div className="side-footer">
+            <button className="side-btn" onClick={doExport} title="Tüm panoları ve medyayı tek dosyaya yedekle">
+              <Download size={14} /> Yedekle
+            </button>
+            <button className="side-btn" onClick={doImport} title="Yedek dosyasını geri yükle">
+              <Upload size={14} /> Geri yükle
+            </button>
+          </div>
+        </>
+      )}
     </aside>
   );
 }

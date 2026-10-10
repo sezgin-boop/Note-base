@@ -7,7 +7,7 @@ export const SIZES: Partial<Record<CardType, { width: number; height?: number }>
   heading: { width: 420 },
   todo: { width: 260 },
   image: { width: 280, height: 200 },
-  video: { width: 360, height: 230 },
+  video: { width: 360 },
   link: { width: 280 },
   board: { width: 150 },
   frame: { width: 560, height: 380 },
@@ -30,6 +30,9 @@ const DEFAULTS: Record<CardType, () => CardData> = {
   color: () => ({ hex: '#a78bfa', title: 'Renk' }),
 };
 
+/** Cards whose height follows their content; only their width is user-resizable. */
+export const AUTO_HEIGHT = new Set<CardType>(['note', 'heading', 'todo', 'video', 'link', 'board', 'scene', 'project', 'color']);
+
 export function makeCard(type: CardType, position: XYPosition, data?: CardData): CardNode {
   return {
     id: nanoid(10),
@@ -40,4 +43,3 @@ export function makeCard(type: CardType, position: XYPosition, data?: CardData):
     ...(type === 'frame' ? { zIndex: -1 } : {}),
   };
 }
-

@@ -1,4 +1,4 @@
-import { Handle, NodeResizer, Position } from '@xyflow/react';
+import { Handle, NodeResizeControl, NodeResizer, Position, ResizeControlVariant } from '@xyflow/react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 
@@ -33,10 +33,36 @@ interface ShellProps {
 }
 
 /** Common card chrome: small header label (like node editors), accent stripe, handles, resizer. */
-export function Shell({ icon, label, selected, color, resizable, minWidth = 140, minHeight = 60, actions, className = '', children }: ShellProps) {
+export function Shell({
+  icon,
+  label,
+  selected,
+  color,
+  resizable,
+  minWidth = 140,
+  minHeight = 60,
+  actions,
+  className = '',
+  children,
+}: ShellProps) {
   return (
-    <div className={`card ${className} ${selected ? 'is-selected' : ''}`} style={color ? ({ '--accent': color } as React.CSSProperties) : undefined}>
-      {resizable && (
+    <div
+      className={`card ${className} ${selected ? 'is-selected' : ''}`}
+      style={color ? ({ '--accent': color } as React.CSSProperties) : undefined}
+    >
+      {resizable === 'width' &&
+        selected &&
+        (['left', 'right'] as const).map((side) => (
+          <NodeResizeControl
+            key={side}
+            position={side}
+            variant={ResizeControlVariant.Line}
+            resizeDirection="horizontal"
+            minWidth={minWidth}
+            className="width-resizer"
+          />
+        ))}
+      {resizable === true && (
         <NodeResizer
           isVisible={!!selected}
           minWidth={minWidth}

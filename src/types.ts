@@ -19,6 +19,16 @@ export interface TodoItem {
   done: boolean;
 }
 
+export interface VideoComment {
+  id: string;
+  /** Seconds into the video, or null for a general comment. */
+  t: number | null;
+  text: string;
+  author?: string;
+  at: number;
+  done?: boolean;
+}
+
 export type ProjectStatus = 'brief' | 'shoot' | 'edit' | 'revision' | 'delivered' | 'paid';
 
 export interface CardData extends Record<string, unknown> {
@@ -30,6 +40,9 @@ export interface CardData extends Record<string, unknown> {
   url?: string;
   caption?: string;
   boardId?: string;
+  // video
+  comments?: VideoComment[];
+  aspect?: number;
   // scene
   number?: number;
   shot?: string;
@@ -53,6 +66,9 @@ export interface BoardMeta {
   icon: string;
   parentId: string | null;
   updatedAt: number;
+  /** Public share token; the board and its sub-boards are readable via /s/<shareId>. */
+  shareId?: string | null;
+  shareComments?: boolean;
 }
 
 export interface BoardContent {
