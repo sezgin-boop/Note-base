@@ -1,6 +1,7 @@
 import { Handle, NodeResizeControl, NodeResizer, Position, ResizeControlVariant } from '@xyflow/react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
+import { CardMeta, useCardNode } from './meta';
 
 const HANDLES: [string, Position][] = [
   ['l', Position.Left],
@@ -45,6 +46,7 @@ export function Shell({
   className = '',
   children,
 }: ShellProps) {
+  const node = useCardNode();
   return (
     <div
       className={`card ${className} ${selected ? 'is-selected' : ''}`}
@@ -73,10 +75,13 @@ export function Shell({
       )}
       <div className="card-label">
         <span className="card-label-icon">{icon}</span>
-        <span>{label}</span>
+        <span className="card-label-text">{label}</span>
         <span className="card-actions">{actions}</span>
       </div>
-      <div className="card-body">{children}</div>
+      <div className="card-body">
+        {children}
+        {node && node.type !== 'frame' && <CardMeta node={node} />}
+      </div>
       <Handles />
     </div>
   );

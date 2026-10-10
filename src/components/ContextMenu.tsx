@@ -22,8 +22,10 @@ import { addPaletteFor } from '../palette';
 import { cardLabel } from '../share/outline';
 import { useStore, type Background } from '../store';
 import type { CardNode, CardType } from '../types';
-import { ACCENTS, PLATFORMS } from '../types';
-import { cardTags } from '../tags';
+import { ACCENTS } from '../types';
+import { CardContext, CardMeta } from '../nodes/meta';
+
+const OUTSIDE_META = new Set<CardType>(['heading', 'color', 'board']);
 import { toast } from '../ui';
 import { TOOLS } from './Toolbar';
 
@@ -333,37 +335,16 @@ function CardActions({ id }: { id: string }) {
   );
 }
 
-/** Schedule and tag chips shown under a card. */
-function CardMeta({ data, node }: { data: CardNode['data']; node: CardNode }) {
-  const tags = cardTags(node);
-  const tagFilter = useStore((s) => s.tagFilter);
-  if (!data.publishDate && !data.platform && !tags.length) return null;
-  const date = data.publishDate ? new Date(`${data.publishDate}T12:00:00`) : null;
-  return (
-    <div className="card-meta">
-      {(date || data.platform) && (
-        <span className="meta-chip" style={{ '--c': PLATFORMS[data.platform ?? ''] ?? 'var(--text-3)' } as React.CSSProperties}>
-          {date && date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          {date && data.platform && ' · '}
-          {data.platform}
-        </span>
-      )}
-      {tags.slice(0, 4).map((t) => (
-        <span key={t} className={`tag-chip ${tagFilter === t ? 'on' : ''}`}>
-          #{t}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentType<P>) {
   return function WithActions(props: P) {
     return (
       <>
         {props.selected && <CardActions id={props.id} />}
-        <Comp {...props} />
-        {props.type !== 'frame' && <CardMeta data={props.data} node={props as unknown as CardNode} />}
+        <CardContext.Provider value={props as unknown as CardNode}>
+          <Comp {...props} />
+        </CardContext.Provider>
+        {/* Cards without the standard frame show their schedule/tags underneath. */}
+        {OUTSIDE_META.has(props.type as CardType) && <CardMeta node={props as unknown as CardNode} outside />}
       </>
     );
   };

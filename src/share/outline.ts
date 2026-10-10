@@ -396,22 +396,24 @@ export function boardsToHtml(boards: OutlineBoard[], opts: OutlineOptions): stri
 <meta property="og:description" content="Notebase board" />
 ${firstImage ? `<meta property="og:image" content="${esc(firstImage)}" />` : ''}
 ${opts.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${esc(opts.markdownUrl)}" />` : ''}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet" />
 <style>
   :root { color-scheme: dark; --bg:#0b0b0d; --card:#17171b; --border:#2a2a31; --text:#ececf1; --muted:#8b8b96; --brand:#a78bfa; }
   @media (prefers-color-scheme: light) { :root { color-scheme: light; --bg:#f7f7f8; --card:#fff; --border:#e4e4e7; --text:#18181b; --muted:#71717a; } }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 Geist, Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
   main { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
   .top { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px; }
   .brand { color:var(--muted); font-size:13px; font-weight:600; letter-spacing:.04em; }
   .btn { display:inline-block; padding:8px 14px; border-radius:9px; background:var(--text); color:var(--bg); text-decoration:none; font-weight:600; font-size:13px; }
   .intro { color:var(--muted); font-size:13px; border-left:2px solid var(--border); padding-left:12px; }
-  h1 { font-size: 30px; letter-spacing:-.02em; margin: 18px 0 4px; }
-  h1.sub { font-size: 22px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); }
+  h1 { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; font-size: 44px; line-height: 1.05; margin: 18px 0 6px; }
+  h1.sub { font-size: 32px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); }
   h2 { font-size: 16px; margin: 26px 0 10px; color: var(--brand); }
   .path, .muted { color: var(--muted); font-size: 13px; margin: 0; }
   ul.cards { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:13px 16px; }
   .kind { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
   .title { font-weight:600; font-size:15.5px; }
   .meta { color:var(--muted); font-size:13px; }

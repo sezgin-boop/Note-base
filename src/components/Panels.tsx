@@ -79,7 +79,7 @@ export function Topbar() {
           </span>
           <TagFilter />
           <ExportMenu />
-          <button className="top-btn" onClick={() => setPanel('share')}>
+          <button className="top-btn primary" onClick={() => setPanel('share')}>
             <Share2 size={14} /> <span className="hide-sm">Share</span>
           </button>
         </>

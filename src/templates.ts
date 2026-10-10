@@ -65,7 +65,7 @@ function welcome(): BoardContent {
 }
 
 function video(): BoardContent {
-  const f1 = card('frame', 0, 0, { title: '1 · Idea & brief', color: '#a78bfa' }, { width: 600, height: 400 });
+  const f1 = card('frame', 0, 0, { title: '1 · Idea & brief', color: '#a78bfa' }, { width: 600, height: 420 });
   const idea = card('note', 24, 60, {
     title: 'Video idea',
     text: 'In one sentence: what does this video promise the viewer?\n\nFormat: YouTube (16:9) + 3 Shorts #idea',
@@ -75,9 +75,9 @@ function video(): BoardContent {
     title: 'Hook (first 3s)',
     text: 'Option A: open with the result\nOption B: ask a question\nOption C: unexpected shot #hook',
   });
-  const audience = card('note', 24, 250, { title: 'Audience', text: 'Who is this for? Why now?' }, { width: 550 });
+  const audience = card('note', 24, 290, { title: 'Audience', text: 'Who is this for? Why now?' }, { width: 550 });
 
-  const f2 = card('frame', 680, 0, { title: '2 · Script', color: '#38bdf8' }, { width: 340, height: 400 });
+  const f2 = card('frame', 680, 0, { title: '2 · Script', color: '#38bdf8' }, { width: 340, height: 420 });
   const script = card(
     'note',
     704,
