@@ -354,7 +354,14 @@ kbd {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
+.side-backdrop { display: none; }
+
 @media (max-width: 720px) {
+  .side-backdrop { display: block; position: fixed; inset: 0; z-index: 15; background: rgba(0, 0, 0, 0.5); animation: fade 0.12s; }
+  .sidebar { width: min(280px, 85vw); }
+  .crumb:not(.current) { display: none; }
+  .tool { width: 40px; height: 40px; }
+  .tip { display: none; }
   .sidebar { position: absolute; z-index: 20; height: 100%; box-shadow: 20px 0 60px rgba(0, 0, 0, 0.5); }
   .jobs { position: absolute; right: 0; z-index: 20; height: 100%; width: min(320px, 100vw); }
   .toolbar { max-width: calc(100vw - 16px); overflow-x: auto; bottom: 10px; }

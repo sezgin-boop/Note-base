@@ -1,7 +1,7 @@
 import { Briefcase, ChevronRight, Download, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { exportWorkspace, importWorkspace } from '../db';
-import { useStore } from '../store';
+import { isPhone, useStore } from '../store';
 import { TEMPLATES, type TemplateId } from '../templates';
 import type { BoardMeta } from '../types';
 
@@ -34,7 +34,10 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
       <div
         className={`tree-item ${active ? 'active' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={() => openBoard(board.id)}
+        onClick={() => {
+          openBoard(board.id);
+          if (isPhone()) useStore.getState().toggleSidebar();
+        }}
         onDoubleClick={() => setEditing(true)}
       >
         <button
@@ -87,6 +90,7 @@ export function Sidebar() {
     setMenu(false);
     const id = await createBoard({ name, parentId: null, icon, template });
     await openBoard(id);
+    if (isPhone()) useStore.getState().toggleSidebar();
   };
 
   const doExport = async () => {

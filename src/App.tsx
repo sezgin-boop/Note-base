@@ -43,7 +43,7 @@ function Shortcuts() {
 }
 
 export default function App() {
-  const { ready, init, panel, sidebar } = useStore();
+  const { ready, init, panel, sidebar, toggleSidebar, setPanel } = useStore();
   useEffect(() => {
     init();
   }, [init]);
@@ -54,6 +54,9 @@ export default function App() {
     <ReactFlowProvider>
       <div className={`app ${sidebar ? '' : 'no-sidebar'}`}>
         {sidebar && <Sidebar />}
+        {(sidebar || panel === 'jobs') && (
+          <div className="side-backdrop" onClick={() => (panel === 'jobs' ? setPanel(null) : toggleSidebar())} />
+        )}
         <main className="main">
           <Topbar />
           <Canvas />

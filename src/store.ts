@@ -61,6 +61,8 @@ interface State {
   focusCard: (boardId: string, cardId: string | null) => Promise<void>;
 }
 
+export const isPhone = () => window.matchMedia('(max-width: 720px)').matches;
+
 let pendingFocus: string | null = null;
 /** True once for a freshly added card, so its main field can grab keyboard focus. */
 export const takeFocus = (id: string) => pendingFocus === id;
@@ -86,7 +88,8 @@ export const useStore = create<State>((set, get) => {
     future: [],
     lightbox: null,
     panel: null,
-    sidebar: localStorage.getItem('notebase:sidebar') !== '0',
+    // Phones start with the sidebar closed; desktop remembers the last choice.
+    sidebar: isPhone() ? false : localStorage.getItem('notebase:sidebar') !== '0',
     focusId: null,
 
     init: () => (initPromise ??= (async () => {
@@ -229,7 +232,7 @@ export const useStore = create<State>((set, get) => {
     setLightbox: (lightbox) => set({ lightbox }),
     setPanel: (panel) => set({ panel }),
     toggleSidebar: () => {
-      localStorage.setItem('notebase:sidebar', get().sidebar ? '0' : '1');
+      if (!isPhone()) localStorage.setItem('notebase:sidebar', get().sidebar ? '0' : '1');
       set({ sidebar: !get().sidebar });
     },
     focusCard: async (boardId, cardId) => {
