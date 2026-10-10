@@ -20,7 +20,18 @@ interface Snapshot {
   edges: CardEdge[];
 }
 
-export type Panel = 'jobs' | 'search' | 'share' | 'account' | 'install' | 'calendar' | 'capture' | 'details' | 'export' | null;
+export type Panel =
+  | 'jobs'
+  | 'search'
+  | 'share'
+  | 'account'
+  | 'install'
+  | 'calendar'
+  | 'capture'
+  | 'details'
+  | 'export'
+  | 'ai'
+  | null;
 export type Theme = 'system' | 'dark' | 'light';
 export type Background = 'dots' | 'grid' | 'none';
 
@@ -103,9 +114,14 @@ interface State {
   patchCard: (boardId: string, cardId: string, patch: Partial<CardData>) => Promise<void>;
   /** Add a card to any board (the open one or one stored on this device). */
   appendCard: (boardId: string, card: CardNode) => Promise<void>;
+  /** Add a batch of cards and arrows (e.g. from an AI reply), selected, as one undo step. */
+  insertCards: (nodes: CardNode[], edges: CardEdge[]) => void;
   ensureInbox: () => Promise<string>;
   focusCard: (boardId: string, cardId: string | null) => Promise<void>;
 }
+
+/** focusId value meaning "zoom to the current selection". */
+export const SELECTION = '__selection__';
 
 export const isPhone = () => window.matchMedia('(max-width: 720px)').matches;
 
@@ -393,6 +409,19 @@ export const useStore = create<State>((set, get) => {
       content.nodes = [...content.nodes, card];
       await db.saveBoard(boardId, content);
       touchBoard(boardId);
+    },
+
+    insertCards: (nodes, edges) => {
+      if (!editable() || !nodes.length) return;
+      get().checkpoint();
+      set({
+        nodes: [
+          ...get().nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+          ...nodes.map((n) => ({ ...n, selected: true })),
+        ],
+        edges: [...get().edges, ...edges],
+        focusId: SELECTION,
+      });
     },
 
     ensureInbox: async () => {

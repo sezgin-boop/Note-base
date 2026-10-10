@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { useEffect, useState, type ReactNode } from 'react';
 import { cloudConfigured, mediaPublicUrl } from '../cloud';
 import * as db from '../db';
+import { AI_GUIDE } from '../ai/importer';
 import { boardsToMarkdown, type OutlineBoard } from '../share/outline';
 import { useStore } from '../store';
 import { signIn, signOut, syncNow, useCloud } from '../sync';
@@ -210,7 +211,8 @@ async function collectTree(): Promise<OutlineBoard[]> {
   );
 }
 
-export async function boardMarkdown(viewUrl?: string) {
+/** The open board (and sub-boards) as Markdown for an AI, ending with how to send cards back and the user's request. */
+export async function boardMarkdown(viewUrl?: string, request?: string) {
   const tree = await collectTree();
   const uploaded = new Set<string>(JSON.parse(localStorage.getItem('notebase:uploaded') ?? '[]'));
   const shared = useStore.getState().shared;
@@ -219,6 +221,7 @@ export async function boardMarkdown(viewUrl?: string) {
     viewUrl,
     mediaUrl: (id) => (cloudConfigured && (uploaded.has(id) || shared) ? mediaPublicUrl(id) : null),
     comments: Object.values(useStore.getState().clientComments).flat(),
+    appendix: AI_GUIDE + (request?.trim() ? `\n\n---\n\n## What I'd like from you\n\n${request.trim()}` : ''),
   });
 }
 

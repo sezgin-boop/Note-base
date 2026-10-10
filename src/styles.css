@@ -742,6 +742,28 @@ select.field-input { padding: 9px 10px; }
 .read-only .react-flow__node .media-empty, .read-only .add-row, .read-only .ghost-x { display: none; }
 .read-only .react-flow__handle { display: none; }
 
+/* ---------- AI ---------- */
+.step {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 7px; font-size: 11px; font-weight: 700;
+  color: #fff; background: var(--grad-solid);
+}
+.share-title svg + .step, .share-title .step { flex-shrink: 0; }
+.preset-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-list .tag-chip.big { height: auto; min-height: 28px; padding: 5px 11px; white-space: normal; text-align: left; line-height: 1.35; }
+.ai-request, .ai-reply { resize: vertical; line-height: 1.5; }
+.ai-reply { font-family: var(--mono); font-size: 12px; min-height: 110px; }
+.ai-links { gap: 6px; }
+.ai-found { display: flex; align-items: center; gap: 7px; padding: 8px 11px; border-radius: 11px; font-size: 12.5px; font-weight: 500; }
+.ai-found.ok { color: var(--green); background: color-mix(in srgb, var(--green) 11%, transparent); }
+.ai-found.bad { color: var(--amber); background: color-mix(in srgb, var(--amber) 11%, transparent); }
+.ai-found svg { flex-shrink: 0; }
+
+/* Scene image prompt */
+.scene-prompt { border-top: 1px solid var(--border); padding-top: 7px; display: flex; flex-direction: column; gap: 3px; }
+.scene-prompt-head { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--brand); }
+.scene-prompt-head .icon-btn { margin-left: auto; width: 22px; height: 22px; }
+.scene-prompt .autotext { font-size: 12.5px; color: var(--text-2); font-style: italic; }
+
 /* ---------- Calendar ---------- */
 .calendar {
   position: absolute; z-index: 15; top: var(--gap); right: var(--gap); bottom: var(--gap); left: var(--gap);

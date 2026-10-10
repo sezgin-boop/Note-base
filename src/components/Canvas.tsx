@@ -12,12 +12,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { cardTags } from '../tags';
 import { addTyped } from '../actions';
+import { importFromAi } from '../ai/apply';
+import { hasNotebaseBlock } from '../ai/importer';
 import { isImageUrl, isVideoUrl, saveMedia } from '../db';
 import { ImageNode, LinkNode } from '../nodes/MediaNodes';
 import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
-import { useStore } from '../store';
+import { SELECTION, useStore } from '../store';
 import { ContextMenu, withCardActions } from './ContextMenu';
 import type { CardNode, CardType } from '../types';
 
@@ -60,6 +62,8 @@ export function useCreateFrom() {
     (text: string, at: XYPosition) => {
       const t = text.trim();
       if (!t) return;
+      // A reply from an AI assistant with a ```notebase block becomes real cards.
+      if (hasNotebaseBlock(t)) return importFromAi(t, at);
       if (/^https?:\/\/\S+$/.test(t)) {
         if (isImageUrl(t)) return addCard('image', at, { url: t });
         if (isVideoUrl(t)) return addCard('video', at, { url: t });
@@ -109,10 +113,19 @@ export function Canvas() {
   useEffect(() => {
     if (!focusId) return;
     const t = setTimeout(() => {
-      setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === focusId })));
-      rf.fitView({ nodes: [{ id: focusId }], maxZoom: 1.1, duration: 500, padding: 0.4 });
+      if (focusId === SELECTION) {
+        // Freshly inserted cards are already selected: bring all of them into view.
+        const ids = useStore
+          .getState()
+          .nodes.filter((n) => n.selected)
+          .map((n) => ({ id: n.id }));
+        rf.fitView({ nodes: ids, maxZoom: 1, duration: 500, padding: 0.15 });
+      } else {
+        setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === focusId })));
+        rf.fitView({ nodes: [{ id: focusId }], maxZoom: 1.1, duration: 500, padding: 0.4 });
+      }
       useStore.setState({ focusId: null });
-    }, 60);
+    }, 150);
     return () => clearTimeout(t);
   }, [focusId, currentId, rf, setNodes]);
 

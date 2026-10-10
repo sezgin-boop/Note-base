@@ -32,6 +32,8 @@ export interface OutlineOptions {
   viewUrl?: string;
   markdownUrl?: string;
   comments?: OutlineComment[];
+  /** Extra Markdown appended at the end (e.g. how an AI can send cards back). */
+  appendix?: string;
 }
 
 interface Item {
@@ -200,7 +202,7 @@ function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: Outlin
         kind: 'Scene',
         title: `Scene ${String(d.number ?? 1).padStart(2, '0')}`,
         meta: [d.shot, d.duration].filter(Boolean) as string[],
-        lines: [...lines(d.text), ...(d.audio ? [`Sound: ${d.audio}`] : [])],
+        lines: [...lines(d.text), ...(d.audio ? [`Sound: ${d.audio}`] : []), ...(d.prompt ? [`Image prompt: ${d.prompt}`] : [])],
         image: d.mediaId && opts.mediaUrl(d.mediaId) ? { url: opts.mediaUrl(d.mediaId)!, alt: 'Scene frame' } : undefined,
       };
     case 'project':
@@ -337,6 +339,7 @@ export function boardsToMarkdown(boards: OutlineBoard[], opts: OutlineOptions): 
       out.push('## Connections (flow of ideas)', '', ...d.connections.map((c) => `- ${c}`), '');
     }
   });
+  if (opts.appendix) out.push('---', '', opts.appendix);
   return (
     out
       .join('\n')
@@ -424,6 +427,8 @@ ${opts.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${esc(opt
   .comments { margin:8px 0 0; padding-left:18px; font-size:13.5px; }
   a { color: var(--brand); word-break: break-word; }
   ul.links { padding-left: 18px; }
+  .ai-guide { margin-top: 48px; color: var(--muted); font-size: 13px; }
+  .ai-guide pre { white-space: pre-wrap; font-size: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
 </style>
 </head>
 <body>
@@ -431,6 +436,7 @@ ${opts.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${esc(opt
   <div class="top"><span class="brand">NOTEBASE · SHARED BOARD</span>${opts.viewUrl ? `<a class="btn" href="${esc(opts.viewUrl)}">Open interactive board →</a>` : ''}</div>
   <p class="intro">${esc(INTRO)}${opts.markdownUrl ? ` Plain text (Markdown): <a href="${esc(opts.markdownUrl)}">${esc(opts.markdownUrl)}</a>` : ''}</p>
   ${body}
+  ${opts.appendix ? `<section class="ai-guide"><details><summary>For AI assistants: how to send cards back to Notebase</summary><pre>${esc(opts.appendix)}</pre></details></section>` : ''}
 </main>
 </body>
 </html>`;

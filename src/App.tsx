@@ -4,6 +4,7 @@ import { fetchShared } from './cloud';
 import { hostname, isVideoUrl, loadBoard } from './db';
 import { makeCard } from './cards';
 import { Zap } from 'lucide-react';
+import { AiDialog } from './components/AiDialog';
 import { CaptureDialog } from './components/Capture';
 import { CalendarView, DetailsDialog } from './components/Planning';
 import { toast } from './ui';
@@ -44,6 +45,7 @@ function Shortcuts() {
       if (e.key === 'Delete' || e.key === 'Backspace') return s.deleteSelected();
       if (mod || e.altKey || justCreated()) return;
       if (key === 'q') return e.preventDefault(), s.setPanel('capture');
+      if (key === 'a') return e.preventDefault(), s.setPanel('ai');
       const tool = TOOLS.find((t) => t.key.toLowerCase() === key);
       if (tool) {
         e.preventDefault();
@@ -155,6 +157,7 @@ export default function App() {
       {panel === 'install' && <InstallDialog />}
       {panel === 'capture' && <CaptureDialog />}
       {panel === 'details' && <DetailsDialog />}
+      {panel === 'ai' && <AiDialog />}
       <Lightbox />
       <Toasts />
       {!readOnly && <Shortcuts />}

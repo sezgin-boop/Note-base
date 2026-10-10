@@ -2,6 +2,7 @@
 // Everything is in the response itself, so it can be read without running JavaScript —
 // by people with slow phones, link previews and AI tools alike.
 
+import { AI_GUIDE } from '../src/ai/importer';
 import { boardsToHtml, boardsToMarkdown, type OutlineOptions } from '../src/share/outline';
 
 export const config = { runtime: 'edge' };
@@ -53,6 +54,7 @@ export default async function handler(req: Request): Promise<Response> {
     viewUrl: `${origin}/?share=${id}`,
     markdownUrl: `${origin}/s/${id}/md`,
     comments: bundle.comments ?? [],
+    appendix: AI_GUIDE,
   };
   const boards = (bundle.boards ?? []).map((b: any) => ({ ...b, content: b.content ?? { nodes: [], edges: [] } }));
   const headers = { 'cache-control': 'public, max-age=0, s-maxage=15, stale-while-revalidate=60' };

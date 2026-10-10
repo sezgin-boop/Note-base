@@ -74,6 +74,8 @@ export interface CardData extends Record<string, unknown> {
   shot?: string;
   duration?: string;
   audio?: string;
+  /** Text-to-image prompt for generating this scene's frame. */
+  prompt?: string;
   // project
   client?: string;
   deadline?: string;

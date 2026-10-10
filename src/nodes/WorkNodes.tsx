@@ -1,7 +1,8 @@
 import type { NodeProps } from '@xyflow/react';
-import { Briefcase, Clapperboard, ImagePlus, LayoutDashboard, Palette } from 'lucide-react';
+import { Briefcase, Clapperboard, Copy, ImagePlus, LayoutDashboard, Palette, Sparkles } from 'lucide-react';
 import { saveMedia, useMediaUrl } from '../db';
 import { useRef, useState } from 'react';
+import { toast } from '../ui';
 import { takeFocus, useStore } from '../store';
 import type { CardNode, ProjectStatus } from '../types';
 import { SHOT_TYPES, STATUS_COLORS, STATUS_LABELS } from '../types';
@@ -81,6 +82,34 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
           onChange={(e) => updateData(id, { audio: e.target.value })}
         />
       </div>
+      {data.prompt !== undefined ? (
+        <div className="scene-prompt">
+          <div className="scene-prompt-head">
+            <Sparkles size={11} /> Image prompt
+            <button
+              className="nodrag allow icon-btn"
+              title="Copy prompt"
+              onClick={() => {
+                navigator.clipboard?.writeText(data.prompt ?? '');
+                toast('Prompt copied');
+              }}
+            >
+              <Copy size={11} />
+            </button>
+          </div>
+          <AutoText
+            value={data.prompt}
+            placeholder="Describe the frame for an image generator…"
+            onChange={(prompt) => updateData(id, { prompt })}
+          />
+        </div>
+      ) : (
+        selected && (
+          <button className="nodrag add-row" onClick={() => updateData(id, { prompt: '' })}>
+            <Sparkles size={12} /> Add image prompt
+          </button>
+        )
+      )}
     </Shell>
   );
 }
@@ -203,6 +232,7 @@ export function FrameNode({ id, data, selected }: NodeProps<CardNode>) {
     >
       <input
         className="nodrag frame-title"
+        size={Math.max(6, (data.title ?? '').length + 1)}
         value={data.title ?? ''}
         placeholder="Section name"
         onChange={(e) => updateData(id, { title: e.target.value })}

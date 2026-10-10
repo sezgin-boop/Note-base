@@ -50,6 +50,18 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Export: the whole board as PNG, storyboard as PDF (scene cards with frames), a printable shot list, or Markdown
 - Copy a board as structured text for Claude / ChatGPT
 
+**Work with AI (A)**
+
+1. Press **AI** in the top bar, pick or type a request ("Turn this idea into a 6–8 shot storyboard") and **Copy board +
+   request**. The text includes the whole board plus a short guide telling the AI how to answer with a `notebase` block.
+2. Paste it into Claude, ChatGPT or any assistant and talk the idea through.
+3. Copy the AI's reply and paste it onto the canvas (⌘V) — or into the AI dialog — and it becomes real cards: scenes with
+   shot type, length, sound and image prompts, notes, lists, colors, links and jobs, connected with arrows and grouped in a
+   section. One ⌘Z removes the whole import.
+
+The `notebase` block format is documented in [`src/ai/importer.ts`](src/ai/importer.ts) (`AI_GUIDE`); the AI reading link
+(`/s/<id>`) includes the same guide.
+
 **Sync & sharing**
 
 - Cloud sync: sign in and your boards, images and videos are the same on every device; works offline and catches up later
@@ -109,7 +121,8 @@ share links and AI tools load them.
 | ⌘K | Search | ⌘J | Jobs |
 | ⌘⇧C | Calendar | Double-click | New note |
 | ⌘Z / ⇧⌘Z | Undo / redo | ⌘D | Duplicate |
-| ⌫ / Delete | Delete selection | Right-click | Menu |
+| A | Work with AI | ⌫ / Delete | Delete selection |
+| Right-click | Menu | | |
 
 ## Tech
 

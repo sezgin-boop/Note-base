@@ -1,4 +1,4 @@
-import { Bot, ChevronRight, Eye, Hash, PanelLeft, Search, Share2, X } from 'lucide-react';
+import { Bot, ChevronRight, Eye, Hash, PanelLeft, Search, Share2, Sparkles, X } from 'lucide-react';
 import { boardTags } from '../tags';
 import { ExportMenu } from './Export';
 import { cloudConfigured } from '../cloud';
@@ -79,6 +79,9 @@ export function Topbar() {
           </span>
           <TagFilter />
           <ExportMenu />
+          <button className="top-btn" onClick={() => setPanel('ai')} title="Work with AI (A)">
+            <Sparkles size={14} /> <span className="hide-sm">AI</span>
+          </button>
           <button className="top-btn primary" onClick={() => setPanel('share')}>
             <Share2 size={14} /> <span className="hide-sm">Share</span>
           </button>

@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   MousePointerSquareDashed,
   Pencil,
+  Sparkles,
   Spline,
   Tag,
   Trash2,
@@ -268,6 +269,7 @@ export function ContextMenu() {
               ))}
             </div>
             <div className="menu-sep" />
+            <Item icon={Sparkles} label="Paste from AI…" kbd="A" onClick={() => s.setPanel('ai')} />
             <Item
               icon={MousePointerSquareDashed}
               label="Select all"
