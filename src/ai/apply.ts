@@ -1,4 +1,5 @@
 import type { XYPosition } from '@xyflow/react';
+import { applyHidden, collapseFrame } from '../sections';
 import { useStore } from '../store';
 import { toast } from '../ui';
 import { buildImport, parseImport, summarize, type ParsedImport } from './importer';
@@ -14,8 +15,10 @@ export function importFromAi(text: string, at: XYPosition, opts: { section?: boo
     return false;
   }
   const withSection = opts.section ?? (!!parsed.section || parsed.cards.length > 3);
-  const { nodes, edges } = buildImport(parsed, at, withSection);
-  useStore.getState().insertCards(nodes, edges);
+  const built = buildImport(parsed, at, withSection);
+  const frame = built.nodes.find((n) => n.type === 'frame');
+  const nodes = parsed.collapsed && frame ? applyHidden(collapseFrame(built.nodes, frame.id)) : built.nodes;
+  useStore.getState().insertCards(nodes, built.edges);
   toast(`Added from AI: ${summarize(parsed)}`, 5000);
   return true;
 }

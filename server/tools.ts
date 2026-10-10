@@ -3,6 +3,7 @@
 import { nanoid } from 'nanoid';
 import { buildImport, parseImport, summarize } from '../src/ai/importer';
 import { makeCard, SIZES } from '../src/cards';
+import { applyHidden, collapseFrame, expandFrame, SECTION_LOOKS } from '../src/sections';
 import { boardsToMarkdown } from '../src/share/outline';
 import type { BoardContent, CardData, CardEdge, CardNode, CardType, ProjectStatus } from '../src/types';
 import { STATUS_LABELS } from '../src/types';
@@ -254,6 +255,8 @@ const addCardsTool: Tool = {
       }
       content.nodes.push(...nodes);
       content.edges.push(...edges);
+      const frame = nodes.find((n) => n.type === 'frame');
+      if (args.collapsed && frame) content.nodes = applyHidden(collapseFrame(content.nodes, frame.id));
       return { nodes, edges };
     });
     return (
@@ -287,6 +290,7 @@ const addMediaTool: Tool = {
         },
       },
       section: { type: 'string', description: 'Group them in a section with this title.' },
+      collapsed: { type: 'boolean', description: 'Add that section folded into a compact bar.' },
     },
     required: ['board', 'items'],
   },
@@ -338,6 +342,7 @@ const addMediaTool: Tool = {
         nodes.unshift(frame);
       }
       content.nodes.push(...nodes);
+      if (args.collapsed && withSection) content.nodes = applyHidden(collapseFrame(content.nodes, nodes[0].id));
       return nodes;
     });
     const added = result.filter((n) => n.type !== 'frame');
@@ -370,6 +375,8 @@ const EDITABLE: Record<string, 'string' | 'number' | 'tags' | 'items'> = {
   platform: 'string',
   tags: 'tags',
   items: 'items',
+  icon: 'string',
+  look: 'string',
 };
 
 const updateCardTool: Tool = {
@@ -378,7 +385,8 @@ const updateCardTool: Tool = {
   description:
     'Change fields of one card (ids come from read_board): text, title, label (the small header), scene shot / duration / ' +
     'audio / prompt / number, job client / deadline / fee / status, color, caption, url, tags, publishDate, platform, or a ' +
-    "list's items. Only the given fields change; an empty string clears a field.",
+    "list's items. Sections also take collapsed (true folds the section into a compact bar, false opens it), icon (an " +
+    'emoji) and look (tint, solid, outline, dashed). Only the given fields change; an empty string clears a field.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -397,10 +405,15 @@ const updateCardTool: Tool = {
   annotations: { idempotentHint: true },
   async run(args, ctx) {
     const meta = await resolveBoard(ctx, args.board);
-    const changes = args.changes && typeof args.changes === 'object' ? args.changes : {};
+    const { collapsed, ...changes } = args.changes && typeof args.changes === 'object' ? args.changes : ({} as any);
     const { result } = await changeBoard(ctx.uid, meta.id, (content) => {
-      const node = content.nodes.find((n) => n.id === args.card);
+      let node = content.nodes.find((n) => n.id === args.card);
       if (!node) throw new Error(`No card with id ${args.card} on "${meta.name}". Use read_board to see card ids.`);
+      if (typeof collapsed === 'boolean') {
+        if (node.type !== 'frame') throw new Error('Only sections can be collapsed.');
+        content.nodes = applyHidden((collapsed ? collapseFrame : expandFrame)(content.nodes, node.id));
+        node = content.nodes.find((n) => n.id === args.card)!;
+      }
       const patch: CardData = {};
       const skipped: string[] = [];
       for (const [k, v] of Object.entries(changes)) {
@@ -422,6 +435,10 @@ const updateCardTool: Tool = {
       if (patch.url && !/^https?:\/\//i.test(patch.url)) {
         skipped.push(`url "${patch.url}" (only http/https links)`);
         delete patch.url;
+      }
+      if (patch.look !== undefined && !SECTION_LOOKS.some((l) => l.id === patch.look)) {
+        skipped.push(`look "${patch.look}"`);
+        delete patch.look;
       }
       if (patch.status !== undefined && !(patch.status in STATUS_LABELS)) {
         skipped.push(`status "${patch.status}"`);
@@ -457,7 +474,8 @@ const deleteCardsTool: Tool = {
     const ids = new Set<string>((Array.isArray(args.cards) ? args.cards : []).map(String));
     const { result } = await changeBoard(ctx.uid, meta.id, (content) => {
       const gone = content.nodes.filter((n) => ids.has(n.id));
-      content.nodes = content.nodes.filter((n) => !ids.has(n.id));
+      // Deleting a folded section brings its cards back.
+      content.nodes = applyHidden(content.nodes.filter((n) => !ids.has(n.id)));
       content.edges = content.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target));
       return gone;
     });

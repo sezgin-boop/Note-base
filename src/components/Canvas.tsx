@@ -201,15 +201,41 @@ export function Canvas() {
     setMenu,
     selectOnly,
     tagFilter,
+    fx,
   } = useStore();
-  // Tag filter: matching cards stay, the rest fade back.
+  // Tag filter (matching cards stay, the rest fade back) and section fold / unfold animations.
   const shownNodes = useMemo(
     () =>
-      tagFilter
-        ? nodes.map((n) => (n.type === 'frame' || cardTags(n).includes(tagFilter) ? n : { ...n, className: 'dimmed' }))
-        : nodes,
-    [nodes, tagFilter],
+      nodes.map((n) => {
+        const dim = tagFilter && n.type !== 'frame' && !cardTags(n).includes(tagFilter);
+        const f = fx[n.id];
+        if (!dim && !f) return n;
+        return {
+          ...n,
+          className: [dim && 'dimmed', f && `nb-${f.k}`].filter(Boolean).join(' '),
+          ...(f
+            ? { style: { ...n.style, '--d': `${f.d}ms`, '--tx': `${f.tx}px`, '--ty': `${f.ty}px` } as React.CSSProperties }
+            : {}),
+        };
+      }),
+    [nodes, tagFilter, fx],
   );
+  // Arrows of cards inside folded sections are hidden too (React Flow misses some when it only
+  // renders what's on screen, as on phones).
+  const shownEdges = useMemo(() => {
+    const hidden = new Set(nodes.filter((n) => n.hidden).map((n) => n.id));
+    if (!hidden.size && !Object.keys(fx).length) return edges;
+    return edges.map((e) => {
+      if (hidden.has(e.source) || hidden.has(e.target)) return e.hidden ? e : { ...e, hidden: true };
+      const k =
+        fx[e.source]?.k === 'out' || fx[e.target]?.k === 'out'
+          ? 'out'
+          : fx[e.source]?.k === 'in' || fx[e.target]?.k === 'in'
+            ? 'in'
+            : null;
+      return k ? { ...e, className: `nb-edge-${k}` } : e;
+    });
+  }, [nodes, edges, fx]);
   const rf = useReactFlow();
   const { fromFiles, fromText } = useCreateFrom();
   const mouse = useRef<XYPosition>({ x: 0, y: 0 });
@@ -277,6 +303,15 @@ export function Canvas() {
     frameChildren.current.clear();
     const draggedIds = new Set(dragged.map((n) => n.id));
     for (const frame of dragged.filter((n) => n.type === 'frame')) {
+      // A folded section carries the cards it holds (they are hidden, so geometry can't tell).
+      if (frame.data.collapsed) {
+        const members = new Set(frame.data.members ?? []);
+        const kids = nodes
+          .filter((n) => members.has(n.id) && !draggedIds.has(n.id))
+          .map((n) => ({ id: n.id, start: n.position }));
+        frameChildren.current.set(frame.id, { start: frame.position, kids });
+        continue;
+      }
       const fw = frame.measured?.width ?? frame.width ?? 0;
       const fh = frame.measured?.height ?? frame.height ?? 0;
       const kids = nodes
@@ -332,7 +367,7 @@ export function Canvas() {
       <ReactFlow
         key={currentId}
         nodes={shownNodes}
-        edges={edges}
+        edges={shownEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}

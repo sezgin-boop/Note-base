@@ -27,6 +27,10 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Arrows between cards, with labels and arrowheads (right-click a connection)
 - Right-click menus for cards, connections and the canvas; on touch screens a selected card shows duplicate / delete / more
 - Drag & drop or paste images, videos, links and text; moving a section moves the cards inside it
+- Collapsible sections: the ▾ button (or Enter on a selected section) folds a section into a compact bar showing its
+  icon, title, what's inside (card counts, to-do progress, picture previews); open it again with ▸ or a double-click.
+  Right-click a section for its icon, color and style (Tint, Solid, Outline, Dashed), or the canvas for _Collapse /
+  Expand all sections_. A folded bar can be moved with everything in it; search opens it when a hit is inside
 - Text formatting in notes, scenes and job notes: **bold** (⌘B), *italic* (⌘I), ~~strike~~, ==highlight== (⌘⇧H),
   colored text, big lines and bullets — click the text to get the formatting bar. Stored as plain text with markers
   (`**bold**`, `==highlight==`, `:red[text]`), so exports and AI tools still read it
@@ -168,7 +172,7 @@ in Vercel and delete the old one.
 | ⌘⇧C | Calendar | Double-click | New note |
 | ⌘Z / ⇧⌘Z | Undo / redo | ⌘D | Duplicate |
 | A | Work with AI | ⌫ / Delete | Delete selection |
-| Right-click | Menu | | |
+| Right-click | Menu | ↵ | Fold / unfold selected section |
 
 ## Tech
 

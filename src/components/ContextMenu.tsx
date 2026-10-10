@@ -6,6 +6,8 @@ import {
   ArrowUpToLine,
   Copy,
   ExternalLink,
+  FoldVertical,
+  UnfoldVertical,
   Maximize,
   MoreHorizontal,
   MousePointerSquareDashed,
@@ -20,6 +22,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
 import { addPaletteFor } from '../palette';
+import { SECTION_LOOKS } from '../sections';
 import { cardLabel } from '../share/outline';
 import { useStore, type Background } from '../store';
 import type { CardNode, CardType } from '../types';
@@ -29,6 +32,8 @@ import { CardContext, CardMeta } from '../nodes/meta';
 const OUTSIDE_META = new Set<CardType>(['heading', 'color', 'board']);
 import { toast } from '../ui';
 import { TOOLS } from './Toolbar';
+
+const SECTION_ICONS = ['🎬', '🎞️', '📱', '🎥', '✍️', '💡', '🎯', '📌', '🔥', '⭐', '💼', '🗂️', '🎨', '🎵', '📅', '✅'];
 
 const ACCENT_TYPES = new Set<CardType>(['note', 'todo', 'frame', 'scene', 'heading']);
 /** Cards with the standard header, whose header text can be renamed. */
@@ -123,6 +128,9 @@ export function ContextMenu() {
   if (menu.kind === 'node' && node) {
     const board = node.type === 'board' ? s.boards.find((b) => b.id === node.data.boardId) : undefined;
     const showAccent = selected.every((n) => ACCENT_TYPES.has(n.type as CardType));
+    const frames = (selected.length ? selected : [node]).filter((n) => n.type === 'frame');
+    const folded = frames.some((f) => f.data.collapsed);
+    const onlyFrames = frames.length > 0 && frames.length === (selected.length || 1);
     content = (
       <>
         <div className="menu-head">
@@ -137,6 +145,19 @@ export function ContextMenu() {
               const name = prompt('Board name', board.name);
               if (name?.trim()) s.renameBoard(board.id, { name: name.trim() });
             }}
+          />
+        )}
+        {frames.length > 0 && (
+          <Item
+            icon={folded ? UnfoldVertical : FoldVertical}
+            label={`${folded ? 'Expand' : 'Collapse'} section${frames.length > 1 ? 's' : ''}`}
+            kbd="↵"
+            onClick={() =>
+              s.toggleSections(
+                frames.map((f) => f.id),
+                folded,
+              )
+            }
           />
         )}
         {!ro && <Item icon={Copy} label="Duplicate" kbd="⌘D" onClick={s.duplicateSelected} />}
@@ -177,6 +198,54 @@ export function ContextMenu() {
               />
             ))}
           </div>
+        )}
+        {!ro && onlyFrames && (
+          <>
+            <div className="menu-head">Section icon</div>
+            <div className="menu-emoji">
+              {SECTION_ICONS.map((e) => (
+                <button
+                  key={e}
+                  className={node.data.icon === e ? 'on' : ''}
+                  onClick={() => {
+                    s.patchSelected((n) => (n.type === 'frame' ? { ...n, data: { ...n.data, icon: e } } : n));
+                    s.setMenu(null);
+                  }}
+                >
+                  {e}
+                </button>
+              ))}
+              {node.data.icon && (
+                <button
+                  className="none"
+                  title="No icon"
+                  onClick={() => {
+                    s.patchSelected((n) => {
+                      const { icon, ...data } = n.data;
+                      return n.type === 'frame' ? { ...n, data } : n;
+                    });
+                    s.setMenu(null);
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="menu-row">
+              <span>Style</span>
+              <div className="seg menu-seg">
+                {SECTION_LOOKS.map((l) => (
+                  <button
+                    key={l.id}
+                    className={(node.data.look ?? 'tint') === l.id ? 'on' : ''}
+                    onClick={() => s.patchSelected((n) => (n.type === 'frame' ? { ...n, data: { ...n.data, look: l.id } } : n))}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
         {!ro && selected.every((n) => TEXT_TYPES.has(n.type as CardType)) && (
           <div className="menu-row">
@@ -309,11 +378,17 @@ export function ContextMenu() {
               icon={MousePointerSquareDashed}
               label="Select all"
               kbd="⌘A"
-              onClick={() => s.setNodes((ns) => ns.map((n) => ({ ...n, selected: true })))}
+              onClick={() => s.setNodes((ns) => ns.map((n) => ({ ...n, selected: !n.hidden })))}
             />
           </>
         )}
         <Item icon={Maximize} label="Fit to screen" onClick={() => rf.fitView({ padding: 0.2, duration: 400, maxZoom: 1 })} />
+        {s.nodes.some((n) => n.type === 'frame' && !n.data.collapsed && !n.hidden) && (
+          <Item icon={FoldVertical} label="Collapse all sections" onClick={() => s.setAllSections(false)} />
+        )}
+        {s.nodes.some((n) => n.type === 'frame' && n.data.collapsed) && (
+          <Item icon={UnfoldVertical} label="Expand all sections" onClick={() => s.setAllSections(true)} />
+        )}
         <div className="menu-sep" />
         <div className="menu-head">Background</div>
         <div className="seg menu-seg">

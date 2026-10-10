@@ -1,7 +1,9 @@
 import type { NodeProps } from '@xyflow/react';
-import { Briefcase, Clapperboard, Copy, ImagePlus, LayoutDashboard, Palette, Sparkles, Volume2 } from 'lucide-react';
+import { Briefcase, ChevronDown, Clapperboard, Copy, ImagePlus, LayoutDashboard, Palette, Sparkles, Volume2 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { saveMedia, useMediaUrl, usePreviewUrl } from '../db';
 import { useRef, useState } from 'react';
+import { memberSummary } from '../sections';
 import { toast } from '../ui';
 import { takeFocus, useStore } from '../store';
 import type { CardNode, ProjectStatus } from '../types';
@@ -218,8 +220,15 @@ export function BoardNode({ data, selected }: NodeProps<CardNode>) {
   );
 }
 
-export function FrameNode({ id, data, selected }: NodeProps<CardNode>) {
+export function FrameNode(props: NodeProps<CardNode>) {
+  return props.data.collapsed ? <CollapsedSection {...props} /> : <OpenSection {...props} />;
+}
+
+function OpenSection({ id, data, selected }: NodeProps<CardNode>) {
   const updateData = useStore((s) => s.updateData);
+  const toggleSections = useStore((s) => s.toggleSections);
+  const setMenu = useStore((s) => s.setMenu);
+  const selectOnly = useStore((s) => s.selectOnly);
   return (
     <Shell
       icon={<LayoutDashboard size={12} />}
@@ -229,16 +238,89 @@ export function FrameNode({ id, data, selected }: NodeProps<CardNode>) {
       resizable
       minWidth={200}
       minHeight={120}
-      className="frame-card"
+      className={`frame-card look-${data.look ?? 'tint'}`}
       actions={selected && <AccentPicker id={id} value={data.color} />}
     >
-      <input
-        className="nodrag frame-title"
-        size={Math.max(6, (data.title ?? '').length + 1)}
-        value={data.title ?? ''}
-        placeholder="Section name"
-        onChange={(e) => updateData(id, { title: e.target.value })}
-      />
+      <div className="frame-head">
+        <button className="frame-toggle nodrag" title="Collapse section" onClick={() => toggleSections([id], false)}>
+          <ChevronDown size={17} />
+        </button>
+        {data.icon && (
+          <button
+            className="frame-icon nodrag"
+            title="Change icon"
+            onClick={(e) => {
+              selectOnly(id);
+              setMenu({ x: e.clientX, y: e.clientY, kind: 'node', id });
+            }}
+          >
+            {data.icon}
+          </button>
+        )}
+        <input
+          className="nodrag frame-title"
+          size={Math.max(6, (data.title ?? '').length + 1)}
+          value={data.title ?? ''}
+          placeholder="Section name"
+          onChange={(e) => updateData(id, { title: e.target.value })}
+        />
+      </div>
     </Shell>
   );
+}
+
+/** A folded section: a compact bar with what's inside (counts, list progress, picture previews). */
+function CollapsedSection({ id, data, selected }: NodeProps<CardNode>) {
+  const toggleSections = useStore((s) => s.toggleSections);
+  const members = useStore(
+    useShallow((s) => {
+      const ids = new Set(data.members ?? []);
+      return s.nodes.filter((n) => ids.has(n.id));
+    }),
+  );
+  const cards = members.filter((n) => n.type !== 'frame');
+  const todos = cards.flatMap((n) => (n.type === 'todo' ? (n.data.items ?? []).filter((i) => i.text.trim()) : []));
+  const done = todos.filter((i) => i.done).length;
+  const pictures = cards.filter((n) => (n.type === 'image' || n.type === 'scene') && n.data.mediaId).slice(0, 3);
+  const open = () => toggleSections([id], true);
+  return (
+    <div
+      className={`card section-bar look-${data.look ?? 'tint'} ${selected ? 'is-selected' : ''}`}
+      style={data.color ? ({ '--accent': data.color } as React.CSSProperties) : undefined}
+      onDoubleClick={open}
+    >
+      <button className="frame-toggle nodrag" title="Expand section" onClick={open}>
+        <ChevronDown size={17} />
+      </button>
+      <span className="section-icon">{data.icon ?? <LayoutDashboard size={16} />}</span>
+      <div className="section-text">
+        <div className="section-title">{data.title || 'Section'}</div>
+        <div className="section-sub">
+          {cards.length} card{cards.length === 1 ? '' : 's'}
+          {cards.length > 0 && ` · ${memberSummary(cards)}`}
+        </div>
+      </div>
+      {todos.length > 0 && (
+        <span className="section-progress" title={`${done} of ${todos.length} to-dos done`}>
+          <svg viewBox="0 0 20 20" width="26" height="26">
+            <circle cx="10" cy="10" r="8" />
+            <circle cx="10" cy="10" r="8" className="on" style={{ strokeDasharray: `${(done / todos.length) * 50.27} 50.27` }} />
+          </svg>
+        </span>
+      )}
+      {pictures.length > 0 && (
+        <span className="section-thumbs">
+          {pictures.map((n) => (
+            <SectionThumb key={n.id} mediaId={n.data.mediaId!} />
+          ))}
+        </span>
+      )}
+      <Handles />
+    </div>
+  );
+}
+
+function SectionThumb({ mediaId }: { mediaId: string }) {
+  const src = usePreviewUrl(mediaId);
+  return <span className="section-thumb">{src && <img src={src} alt="" draggable={false} />}</span>;
 }

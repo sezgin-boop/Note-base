@@ -76,10 +76,13 @@ export const fmtTime = (t: number) => {
   return `${h ? `${h}:` : ''}${mm}:${String(s % 60).padStart(2, '0')}`;
 };
 
-const size = (n: CardNode) => ({
-  w: n.width ?? n.measured?.width ?? SIZES[n.type as CardType]?.width ?? 200,
-  h: n.height ?? n.measured?.height ?? SIZES[n.type as CardType]?.height ?? 120,
-});
+const size = (n: CardNode) =>
+  n.type === 'frame' && n.data.collapsed && n.data.openSize
+    ? { w: n.data.openSize.width, h: n.data.openSize.height } // folded sections still hold their cards
+    : {
+        w: n.width ?? n.measured?.width ?? SIZES[n.type as CardType]?.width ?? 200,
+        h: n.height ?? n.measured?.height ?? SIZES[n.type as CardType]?.height ?? 120,
+      };
 
 /** Top-to-bottom, left-to-right, treating cards whose tops are close as one row. */
 function readingOrder(nodes: CardNode[]) {
@@ -285,7 +288,7 @@ function buildDoc(board: OutlineBoard, boardsById: Map<string, OutlineBoard>, op
   for (const f of readingOrder(frames)) {
     sections.push({
       id: opts.withIds ? f.id : undefined,
-      title: f.data.title || 'Section',
+      title: `${f.data.icon ? `${f.data.icon} ` : ''}${f.data.title || 'Section'}${f.data.collapsed ? ' (collapsed)' : ''}`,
       items: itemsOf(cards.filter((c) => owner.get(c.id) === f.id)),
     });
   }

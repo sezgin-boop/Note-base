@@ -34,7 +34,7 @@ export async function extractPalette(src: string, k = 5): Promise<string[]> {
       let bestD = Infinity;
       centers.forEach((c, i) => {
         const d = (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2;
-        if (d < bestD) (bestD = d), (best = i);
+        if (d < bestD) ((bestD = d), (best = i));
       });
       sums[best][0] += p[0];
       sums[best][1] += p[1];

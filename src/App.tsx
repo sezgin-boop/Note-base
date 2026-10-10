@@ -41,9 +41,14 @@ function Shortcuts() {
       if (mod && key === 'z') return (e.preventDefault(), e.shiftKey ? s.redo() : s.undo());
       if (mod && key === 'y') return (e.preventDefault(), s.redo());
       if (mod && key === 'd') return (e.preventDefault(), s.duplicateSelected());
-      if (mod && key === 'a') return (e.preventDefault(), s.setNodes((ns) => ns.map((n) => ({ ...n, selected: true }))));
+      if (mod && key === 'a') return (e.preventDefault(), s.setNodes((ns) => ns.map((n) => ({ ...n, selected: !n.hidden }))));
       if (e.key === 'Delete' || e.key === 'Backspace') return s.deleteSelected();
       if (mod || e.altKey || justCreated()) return;
+      // Enter folds / unfolds the selected sections (a focused button handles Enter itself).
+      if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+        const frames = s.nodes.filter((n) => n.selected && n.type === 'frame');
+        if (frames.length) return (e.preventDefault(), s.toggleSections(frames.map((f) => f.id)));
+      }
       if (key === 'q') return (e.preventDefault(), s.setPanel('capture'));
       if (key === 'a') return (e.preventDefault(), s.setPanel('ai'));
       const tool = TOOLS.find((t) => t.key.toLowerCase() === key);

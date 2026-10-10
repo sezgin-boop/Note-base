@@ -86,6 +86,14 @@ export interface CardData extends Record<string, unknown> {
   status?: ProjectStatus;
   // color
   hex?: string;
+  // section (frame)
+  /** Folded into a compact bar; `members` are the hidden cards, `openSize` the size to unfold to. */
+  collapsed?: boolean;
+  members?: string[];
+  openSize?: { width: number; height: number };
+  /** Emoji shown before the section title. */
+  icon?: string;
+  look?: 'tint' | 'solid' | 'outline' | 'dashed';
 }
 
 export type CardNode = Node<CardData, CardType>;

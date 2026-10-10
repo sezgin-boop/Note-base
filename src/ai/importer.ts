@@ -40,7 +40,8 @@ Rules: "type" is one of scene, note, todo, heading, link, video, image, color, p
 Wide, Medium, Close-up, Extreme close-up, Insert, POV, Drone, B-roll. Any card may also have "tags" (array),
 "publishDate" (YYYY-MM-DD) and "platform" (YouTube, Shorts, Instagram, Reels, TikTok, X, LinkedIn, Podcast, Client, Other).
 Job "status" is one of ${Object.keys(STATUS_LABELS).join(', ')}. "id" is only needed for cards used in "links".
-"section" is optional and groups the new cards in a titled section. Cards are always added as new cards; nothing
+"section" is optional and groups the new cards in a titled section; add "collapsed": true to fold that section into a
+compact bar the user can open (good for long scripts or alternatives). Cards are always added as new cards; nothing
 on the board is changed or removed. Keep the JSON valid (double quotes, no comments).`;
 
 const TYPES = new Set<CardType>(['scene', 'note', 'todo', 'heading', 'link', 'video', 'image', 'color', 'project']);
@@ -54,6 +55,8 @@ interface RawCard extends Record<string, unknown> {
 
 export interface ParsedImport {
   section?: string;
+  /** Add the section folded into a compact bar. */
+  collapsed?: boolean;
   cards: { ref?: string; type: CardType; data: CardData }[];
   links: { from: string; to: string; label?: string }[];
 }
@@ -182,7 +185,7 @@ export function parseImport(text: string): ParsedImport {
     const [from, to, label] = Array.isArray(l) ? l : [l?.from, l?.to, l?.label];
     if (typeof from === 'string' && typeof to === 'string') links.push({ from, to, label: str(label, 80) });
   }
-  return { section: str(raw?.section ?? raw?.title, 120), cards, links };
+  return { section: str(raw?.section ?? raw?.title, 120), collapsed: raw?.collapsed === true, cards, links };
 }
 
 export function summarize(p: ParsedImport) {
