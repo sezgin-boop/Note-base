@@ -427,7 +427,9 @@ function CardActions({ id }: { id: string }) {
   const count = s.nodes.filter((n) => n.selected).length;
   if (s.readOnly || count !== 1) return null;
   return (
-    <NodeToolbar position={Position.Top} offset={10} className="card-toolbar" isVisible>
+    // The toolbar takes its layer from the card (+1); sections sit at the back (-1), which would put
+    // it under the canvas where it can't be clicked. Keep it on top of everything.
+    <NodeToolbar position={Position.Top} offset={10} className="card-toolbar" isVisible style={{ zIndex: 2000 }}>
       <button title="Duplicate" onClick={s.duplicateSelected}>
         <Copy size={14} />
       </button>
