@@ -308,5 +308,5 @@ export function buildImport(p: ParsedImport, origin: XYPosition, withSection: bo
     frame.height = Math.max(200, y - origin.y + pad + 60);
     nodes.unshift(frame);
   }
-  return { nodes, edges };
+  return { nodes, edges, byRef };
 }

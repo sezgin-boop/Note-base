@@ -35,9 +35,14 @@ export interface OutlineOptions {
   comments?: OutlineComment[];
   /** Extra Markdown appended at the end (e.g. how an AI can send cards back). */
   appendix?: string;
+  /** Show card ids (Markdown only), so a tool can refer to cards when editing. */
+  withIds?: boolean;
+  /** Names of sub-boards that aren't included in the outline. */
+  otherBoards?: Map<string, { name: string; icon: string }>;
 }
 
 interface Item {
+  id?: string;
   icon: string;
   kind: string;
   title?: string;
@@ -50,6 +55,7 @@ interface Item {
 }
 
 interface Section {
+  id?: string;
   title: string | null;
   items: Item[];
 }
@@ -194,10 +200,11 @@ function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: Outlin
       return d.url ? { icon: '🔗', kind: 'Link', link: { url: d.url, text: d.title || d.url } } : null;
     case 'board': {
       const b = d.boardId ? boardsById.get(d.boardId) : undefined;
+      const other = d.boardId ? opts.otherBoards?.get(d.boardId) : undefined;
       return {
-        icon: b?.icon ?? '📁',
+        icon: b?.icon ?? other?.icon ?? '📁',
         kind: 'Sub-board',
-        title: b ? b.name : '(board not shared)',
+        title: b ? b.name : other ? `${other.name} (board id: ${d.boardId})` : '(board not shared)',
         lines: b ? ['Its content follows below under its own heading.'] : undefined,
       };
     }
@@ -266,14 +273,21 @@ function buildDoc(board: OutlineBoard, boardsById: Map<string, OutlineBoard>, op
 
   const itemsOf = (list: CardNode[]) =>
     readingOrder(list)
-      .map((n) => withPlanning(toItem(n, boardsById, opts), n))
+      .map((n) => {
+        const it = withPlanning(toItem(n, boardsById, opts), n);
+        return it && opts.withIds ? { ...it, id: n.id } : it;
+      })
       .filter(Boolean) as Item[];
 
   const sections: Section[] = [];
   const loose = cards.filter((c) => !owner.get(c.id));
   if (loose.length) sections.push({ title: frames.length ? 'Cards outside sections' : null, items: itemsOf(loose) });
   for (const f of readingOrder(frames)) {
-    sections.push({ title: f.data.title || 'Section', items: itemsOf(cards.filter((c) => owner.get(c.id) === f.id)) });
+    sections.push({
+      id: opts.withIds ? f.id : undefined,
+      title: f.data.title || 'Section',
+      items: itemsOf(cards.filter((c) => owner.get(c.id) === f.id)),
+    });
   }
   // Loose cards usually frame the board (titles, intro), but keep sections in canvas order otherwise.
   if (loose.length && frames.length) {
@@ -335,7 +349,7 @@ export function boardsToMarkdown(boards: OutlineBoard[], opts: OutlineOptions): 
     if (i > 0) out.push('---', '', `# ${d.icon} ${d.name}`, '');
     if (d.path.length) out.push(`_Location: ${d.path.join(' / ')} / ${d.name}_`, '');
     for (const s of d.sections) {
-      if (s.title) out.push(`## ${s.title}`, '');
+      if (s.title) out.push(`## ${s.title}${s.id ? ` \`id: ${s.id}\`` : ''}`, '');
       if (!s.items.length) out.push('_(empty)_', '');
       for (const it of s.items) out.push(...itemMd(it));
       if (s.items.length) out.push('');
@@ -358,7 +372,7 @@ function itemMd(it: Item): string[] {
   if (it.title) head.push(`**${it.title.replace(/\n/g, ' ')}**`);
   if (it.meta?.length) head.push(it.meta.filter(Boolean).join(' · '));
   if (it.link) head.push(`[${it.link.text}](${it.link.url})`);
-  const out = [`- ${head.join(' — ')}`];
+  const out = [`- ${head.join(' — ')}${it.id ? ` \`id: ${it.id}\`` : ''}`];
   for (const l of it.lines ?? []) out.push(`  ${l}`.trimEnd() || '  ');
   for (const c of it.checklist ?? []) out.push(`  - [${c.done ? 'x' : ' '}] ${c.text}`);
   if (it.image) out.push(`  ![${it.image.alt}](${it.image.url})`);

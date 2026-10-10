@@ -70,6 +70,12 @@ It works fully without the cloud; everything is then stored only in the browser 
 The `notebase` block format is documented in [`src/ai/importer.ts`](src/ai/importer.ts) (`AI_GUIDE`); the AI reading link
 (`/s/<id>`) includes the same guide.
 
+**Claude connector**
+
+Add Notebase to Claude as a connector and Claude can work on your boards directly: read them, build storyboards,
+add notes, lists and jobs, put photos and videos from the web on a board, edit or delete cards and create boards. See
+[Claude connector](#claude-connector) below.
+
 **Sync & sharing**
 
 - Cloud sync: sign in and your boards, images and videos are the same on every device; works offline and catches up later
@@ -107,6 +113,38 @@ one click from the Supabase dashboard.
 the link until you turn sharing off. Uploaded images and videos have unguessable but public addresses — that is what lets
 share links and AI tools load them.
 
+## Claude connector
+
+Notebase includes a remote MCP server (`/mcp`), so Claude (claude.ai, the desktop and mobile apps, Claude Code) can use
+your boards as a connector. It needs the cloud set up first.
+
+**Set up (once)**
+
+1. Supabase → **Project Settings → API Keys** → copy the **secret** key (`sb_secret_…`; on older projects the
+   _service_role_ key under _Legacy API keys_).
+2. Vercel → your project → **Settings → Environment Variables** → add `SUPABASE_SERVICE_ROLE_KEY` = that key.
+   **Never** give it a `VITE_` or `NEXT_PUBLIC_` prefix — those end up in the public website. Then redeploy.
+3. Claude → **Settings → Connectors → Add custom connector**. Name: `Notebase`, URL: `https://<your-site>/mcp`
+   (e.g. `https://note-base-wine.vercel.app/mcp`) → **Add** → **Connect**, and sign in with your Notebase email and password.
+
+**Use it** — just ask, for example:
+
+- "Look at my Night drive board and turn the idea into an 8-shot storyboard on it."
+- "Make a moodboard board with these 6 photos: <links>"
+- "What did the client comment on V2 of the brand film? Make a to-do list from it."
+- "Mark the Acme job as delivered."
+
+Changes show up in the app within about 30 seconds; Claude also gives you a link that opens the board.
+
+What it can do: `list_boards`, `read_board`, `search`, `add_cards`, `add_media` (images and videos from links are copied
+into your storage; YouTube / Vimeo become video cards; other pages become link cards), `update_card`, `delete_cards`,
+`create_board`. Photos you upload into a Claude chat can't be passed on (Claude only sees them); use links, or add
+them with Quick capture.
+
+**Security:** signing in only works for Claude's own addresses, and every action is limited to your account. Removing the
+connector in Claude disconnects it; to cut off every connected app at once, create a new secret key in Supabase, put it
+in Vercel and delete the old one.
+
 ## Share links
 
 | Link | What it is |
@@ -135,7 +173,8 @@ share links and AI tools load them.
 ## Tech
 
 React + TypeScript + Vite, [React Flow](https://reactflow.dev) (canvas), Zustand (state), IndexedDB (on-device storage),
-Supabase (accounts, database, files), a Vercel Edge Function (`api/share.ts`, the share page), html-to-image (PNG export).
+Supabase (accounts, database, files), Vercel Edge Functions (`api/share.ts` the share page, `api/mcp.ts` + `api/oauth-*.ts`
+the Claude connector, with shared code in `server/`), html-to-image (PNG export).
 
 Sync is offline-first: the app always reads from the device, and changes go to the cloud in the background. Each board is
 one row and the most recent save wins — if the same board is edited on two devices at the same moment, the later save wins.

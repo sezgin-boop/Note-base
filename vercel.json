@@ -1,10 +1,51 @@
 {
   "rewrites": [
-    { "source": "/s/:id/md", "destination": "/api/share?id=:id&format=md" },
-    { "source": "/s/:id/json", "destination": "/api/share?id=:id&format=json" },
-    { "source": "/s/:id", "destination": "/api/share?id=:id" }
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/oauth-meta?type=resource"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/:path*",
+      "destination": "/api/oauth-meta?type=resource"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "/api/oauth-meta?type=server"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server/:path*",
+      "destination": "/api/oauth-meta?type=server"
+    },
+    {
+      "source": "/.well-known/openid-configuration",
+      "destination": "/api/oauth-meta?type=server"
+    },
+    {
+      "source": "/s/:id/md",
+      "destination": "/api/share?id=:id&format=md"
+    },
+    {
+      "source": "/s/:id/json",
+      "destination": "/api/share?id=:id&format=json"
+    },
+    {
+      "source": "/s/:id",
+      "destination": "/api/share?id=:id"
+    }
   ],
   "headers": [
-    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
   ]
 }

@@ -26,9 +26,9 @@ function Shortcuts() {
       const s = useStore.getState();
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
-      if (mod && key === 'k') return e.preventDefault(), s.setPanel(s.panel === 'search' ? null : 'search');
-      if (mod && key === 'j') return e.preventDefault(), s.setPanel(s.panel === 'jobs' ? null : 'jobs');
-      if (mod && e.shiftKey && key === 'c') return e.preventDefault(), s.setPanel(s.panel === 'calendar' ? null : 'calendar');
+      if (mod && key === 'k') return (e.preventDefault(), s.setPanel(s.panel === 'search' ? null : 'search'));
+      if (mod && key === 'j') return (e.preventDefault(), s.setPanel(s.panel === 'jobs' ? null : 'jobs'));
+      if (mod && e.shiftKey && key === 'c') return (e.preventDefault(), s.setPanel(s.panel === 'calendar' ? null : 'calendar'));
       if (e.key === 'Escape') {
         if (s.lightbox) return s.setLightbox(null);
         if (s.menu) return s.setMenu(null);
@@ -38,14 +38,14 @@ function Shortcuts() {
         return s.setPanel(null);
       }
       if (isTyping(e.target) || (s.panel && s.panel !== 'jobs')) return;
-      if (mod && key === 'z') return e.preventDefault(), e.shiftKey ? s.redo() : s.undo();
-      if (mod && key === 'y') return e.preventDefault(), s.redo();
-      if (mod && key === 'd') return e.preventDefault(), s.duplicateSelected();
-      if (mod && key === 'a') return e.preventDefault(), s.setNodes((ns) => ns.map((n) => ({ ...n, selected: true })));
+      if (mod && key === 'z') return (e.preventDefault(), e.shiftKey ? s.redo() : s.undo());
+      if (mod && key === 'y') return (e.preventDefault(), s.redo());
+      if (mod && key === 'd') return (e.preventDefault(), s.duplicateSelected());
+      if (mod && key === 'a') return (e.preventDefault(), s.setNodes((ns) => ns.map((n) => ({ ...n, selected: true }))));
       if (e.key === 'Delete' || e.key === 'Backspace') return s.deleteSelected();
       if (mod || e.altKey || justCreated()) return;
-      if (key === 'q') return e.preventDefault(), s.setPanel('capture');
-      if (key === 'a') return e.preventDefault(), s.setPanel('ai');
+      if (key === 'q') return (e.preventDefault(), s.setPanel('capture'));
+      if (key === 'a') return (e.preventDefault(), s.setPanel('ai'));
       const tool = TOOLS.find((t) => t.key.toLowerCase() === key);
       if (tool) {
         e.preventDefault();
@@ -84,6 +84,25 @@ async function acceptSharedIntent() {
   toast('Saved to Inbox');
 }
 
+/**
+ * ?board=<id> (links from the Claude connector) opens that board. A board made elsewhere may only
+ * arrive with the first cloud sync, so wait a little for it.
+ */
+function openLinkedBoard() {
+  const id = new URLSearchParams(location.search).get('board');
+  if (!id) return;
+  history.replaceState(null, '', '/');
+  const open = () => {
+    const s = useStore.getState();
+    if (!s.boards.some((b) => b.id === id)) return false;
+    if (s.currentId !== id) s.openBoard(id);
+    return true;
+  };
+  if (open()) return;
+  const stop = useStore.subscribe(() => open() && (stop(), clearTimeout(timer)));
+  const timer = setTimeout(stop, 20000);
+}
+
 /** Follow the system theme unless the user picked one. */
 function useTheme() {
   const theme = useStore((s) => s.theme);
@@ -111,6 +130,7 @@ export default function App() {
       init().then(() => {
         startSync();
         acceptSharedIntent();
+        openLinkedBoard();
       });
       return;
     }

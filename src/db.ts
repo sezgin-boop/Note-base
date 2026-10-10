@@ -2,6 +2,7 @@ import { del, get, keys, set } from 'idb-keyval';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
 import { cloudConfigured, mediaPublicUrl } from './cloud';
+import { embedUrl } from './share/embed';
 import type { BoardContent, BoardMeta } from './types';
 
 // The browser's IndexedDB is the primary store (works offline): board index, board
@@ -182,18 +183,7 @@ export async function importWorkspace(file: File) {
 
 // --- URL helpers ---
 
-export function youtubeId(url: string): string | null {
-  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
-  return m ? m[1] : null;
-}
-
-export function embedUrl(url: string): string | null {
-  const yt = youtubeId(url);
-  if (yt) return `https://www.youtube.com/embed/${yt}`;
-  const vimeo = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
-  return null;
-}
+export { embedUrl, youtubeId } from './share/embed';
 
 export const isImageUrl = (url: string) => /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i.test(url);
 export const isVideoUrl = (url: string) => /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url) || !!embedUrl(url);
