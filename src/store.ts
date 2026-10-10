@@ -32,6 +32,7 @@ export type Panel =
   | 'details'
   | 'export'
   | 'ai'
+  | 'style'
   | null;
 export type Theme = 'system' | 'dark' | 'light';
 export type Background = 'dots' | 'grid' | 'none';

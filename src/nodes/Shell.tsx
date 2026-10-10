@@ -2,7 +2,9 @@ import { Handle, NodeResizeControl, NodeResizer, Position, ResizeControlVariant 
 import type { ReactNode } from 'react';
 import { Heading, Highlighter, List } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePreviewUrl } from '../db';
 import { renderRich, TEXT_COLORS, toggleLinePrefix, wrapSelection } from '../richtext';
+import { skinLook } from '../skins';
 import { useStore } from '../store';
 import { CardMeta, useCardNode } from './meta';
 
@@ -50,11 +52,20 @@ export function Shell({
   children,
 }: ShellProps) {
   const node = useCardNode();
+  const skin = node?.data.skin;
+  const skinImage = usePreviewUrl(skin?.kind === 'image' ? skin.mediaId : undefined);
+  const look = skin ? skinLook(skin, skinImage) : null;
   return (
     <div
-      className={`card ${className} ${selected ? 'is-selected' : ''} ${node?.data.textSize ? `ts-${node.data.textSize}` : ''}`}
+      className={`card ${className} ${selected ? 'is-selected' : ''} ${node?.data.textSize ? `ts-${node.data.textSize}` : ''} ${look ? `skinned ink-${look.ink}` : ''}`}
       style={color ? ({ '--accent': color } as React.CSSProperties) : undefined}
     >
+      {look && (
+        <span className="card-skin" aria-hidden>
+          <span className="card-skin-bg" style={{ background: look.background, filter: look.filter }} />
+          {look.dim && <span className="card-skin-dim" style={{ background: look.dim }} />}
+        </span>
+      )}
       {resizable === 'width' &&
         selected &&
         (['left', 'right'] as const).map((side) => (

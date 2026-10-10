@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { buildImport, parseImport, summarize } from '../src/ai/importer';
 import { makeCard, SIZES } from '../src/cards';
 import { applyHidden, collapseFrame, expandFrame, SECTION_LOOKS } from '../src/sections';
+import { parseSkin, PRESETS } from '../src/skins';
 import { boardsToMarkdown } from '../src/share/outline';
 import type { BoardContent, CardData, CardEdge, CardNode, CardType, ProjectStatus } from '../src/types';
 import { STATUS_LABELS } from '../src/types';
@@ -386,7 +387,9 @@ const updateCardTool: Tool = {
   description:
     'Change fields of one card (ids come from read_board): text, title, label (the small header), scene shot / duration / ' +
     'audio / prompt / number, job client / deadline / fee / status, color, caption, url, tags, publishDate, platform, or a ' +
-    "list's items. Scenes also take hideFrame (true hides the picture area). Sections also take collapsed (true folds the section into a compact bar, false opens it), icon (an " +
+    `list's items, or style (the card's whole look: one of ${PRESETS.map((p) => p.id).join(', ')}, a color ` +
+    '{"kind":"color","from":"#hex","to":"#hex"} or "default"). Scenes also take hideFrame (true hides the picture area). ' +
+    'Sections also take collapsed (true folds the section into a compact bar, false opens it), icon (an ' +
     'emoji) and look (tint, solid, outline, dashed). Only the given fields change; an empty string clears a field.',
   inputSchema: {
     type: 'object',
@@ -417,6 +420,15 @@ const updateCardTool: Tool = {
       }
       const patch: CardData = {};
       const skipped: string[] = [];
+      if ('style' in changes) {
+        const v = (changes as any).style;
+        const skin = v === 'default' || v === null || v === '' ? undefined : parseSkin(v);
+        if (skin || v === 'default' || v === null || v === '') {
+          const { skin: _, ...data } = node.data;
+          node.data = skin ? { ...data, skin } : data;
+        } else skipped.push(`style ${JSON.stringify(v)}`);
+        delete (changes as any).style;
+      }
       for (const [k, v] of Object.entries(changes)) {
         const kind = EDITABLE[k];
         if (!kind) {

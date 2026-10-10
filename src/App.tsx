@@ -1,3 +1,4 @@
+import { StylePanel } from './components/StylePanel';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
 import { fetchShared } from './cloud';
@@ -37,7 +38,8 @@ function Shortcuts() {
         if (isTyping(e.target)) return (e.target as HTMLElement).blur();
         return s.setPanel(null);
       }
-      if (isTyping(e.target) || (s.panel && s.panel !== 'jobs')) return;
+      // The jobs list and the card-style inspector sit beside the canvas, so its shortcuts keep working.
+      if (isTyping(e.target) || (s.panel && s.panel !== 'jobs' && s.panel !== 'style')) return;
       if (mod && key === 'z') return (e.preventDefault(), e.shiftKey ? s.redo() : s.undo());
       if (mod && key === 'y') return (e.preventDefault(), s.redo());
       if (mod && key === 'd') return (e.preventDefault(), s.duplicateSelected());
@@ -183,6 +185,7 @@ export default function App() {
       {panel === 'capture' && <CaptureDialog />}
       {panel === 'details' && <DetailsDialog />}
       {panel === 'ai' && <AiDialog />}
+      {panel === 'style' && <StylePanel />}
       <Lightbox />
       <Toasts />
       {!readOnly && <Shortcuts />}

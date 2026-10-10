@@ -36,6 +36,10 @@ It works fully without the cloud; everything is then stored only in the browser 
   (`**bold**`, `==highlight==`, `:red[text]`), so exports and AI tools still read it
 - Rename any card's header (double-click it, e.g. "Scene 01" → "Hook"); scenes also have a title; text size S / M / L
   and colors from the right-click menu
+- Card styles (🖌 on a selected card, or right-click → _Card style…_): change a card's whole look — 19 designed styles
+  (Paper, Notebook, Kraft, Holo, Sunset, Aurora, Blueprint, Film grain…), your own color or gradient, or a picture as
+  the background with shade and blur. Text switches to light or dark ink automatically. Apply a style to every card of
+  that kind, or copy and paste it between cards. Works for notes, lists, scenes, jobs, links, videos and sections
 - Background: dots, grid or plain · dark, light or system theme
 
 **Video review**

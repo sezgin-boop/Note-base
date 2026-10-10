@@ -7,6 +7,8 @@ import {
   Copy,
   ExternalLink,
   FoldVertical,
+  ClipboardPaste,
+  Paintbrush,
   Image as ImageIcon,
   UnfoldVertical,
   Maximize,
@@ -24,6 +26,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from
 import { addTyped } from '../actions';
 import { addPaletteFor } from '../palette';
 import { SECTION_LOOKS } from '../sections';
+import { copiedSkin, copySkin, SKIN_TYPES } from './StylePanel';
 import { cardLabel } from '../share/outline';
 import { useStore, type Background } from '../store';
 import type { CardNode, CardType } from '../types';
@@ -135,6 +138,7 @@ export function ContextMenu() {
     const scenes = (selected.length ? selected : [node]).filter((n) => n.type === 'scene');
     const framesHidden = scenes.length > 0 && scenes.every((n) => n.data.hideFrame);
     const allScenes = s.nodes.filter((n) => n.type === 'scene');
+    const styleable = (selected.length ? selected : [node]).every((n) => SKIN_TYPES.has(n.type as CardType));
     content = (
       <>
         <div className="menu-head">
@@ -164,6 +168,7 @@ export function ContextMenu() {
             }
           />
         )}
+        {!ro && styleable && <Item icon={Paintbrush} label="Card style…" onClick={() => s.setPanel('style')} />}
         {!ro && <Item icon={Copy} label="Duplicate" kbd="⌘D" onClick={s.duplicateSelected} />}
         {!ro && !many && <Item icon={CalendarDays} label="Schedule & tags…" onClick={() => s.openDetails(node.id)} />}
         {!ro && !many && LABEL_TYPES.has(node.type as CardType) && (
@@ -201,6 +206,18 @@ export function ContextMenu() {
         )}
         {!ro && !many && (node.type === 'image' || node.type === 'scene') && (node.data.mediaId || node.data.url) && (
           <Item icon={Pipette} label="Extract color palette" onClick={() => addPaletteFor(node)} />
+        )}
+        {!ro && styleable && !many && node.data.skin && (
+          <Item icon={Paintbrush} label="Copy style" onClick={() => copySkin(node)} />
+        )}
+        {!ro && styleable && copiedSkin() && (
+          <Item
+            icon={ClipboardPaste}
+            label="Paste style"
+            onClick={() =>
+              s.patchSelected((n) => (SKIN_TYPES.has(n.type as CardType) ? { ...n, data: { ...n.data, skin: copiedSkin() } } : n))
+            }
+          />
         )}
         <Item
           icon={Copy}
@@ -460,6 +477,15 @@ function CardActions({ id }: { id: string }) {
       <button title="Duplicate" onClick={s.duplicateSelected}>
         <Copy size={14} />
       </button>
+      {SKIN_TYPES.has(s.nodes.find((n) => n.id === id)?.type as CardType) && (
+        <button
+          title="Card style"
+          className={s.panel === 'style' ? 'on' : ''}
+          onClick={() => s.setPanel(s.panel === 'style' ? null : 'style')}
+        >
+          <Paintbrush size={14} />
+        </button>
+      )}
       <button title="Delete" className="danger" onClick={s.deleteSelected}>
         <Trash2 size={14} />
       </button>

@@ -7,6 +7,7 @@ import { nanoid } from 'nanoid';
 import { makeCard, SIZES } from '../cards';
 import type { CardData, CardEdge, CardNode, CardType, ProjectStatus } from '../types';
 import { STATUS_LABELS } from '../types';
+import { parseSkin, PRESETS } from '../skins';
 
 export const AI_GUIDE = `## For AI assistants: sending cards back to Notebase
 
@@ -34,6 +35,8 @@ fenced code block tagged \`notebase\` containing JSON in this shape:
 
 Text fields (text, audio, note text) may use light formatting: **bold**, *italic*, ==highlight==, ~~strike~~,
 colored text like :red[this] (red, orange, yellow, green, blue, purple, pink, gray), "# " for a big line and "- " for bullets.
+Any card may have "style" to change its whole look: one of ${PRESETS.map((p) => p.id).join(', ')}, or
+{"kind": "color", "from": "#1d4ed8", "to": "#db2777"} for your own color / gradient.
 Scenes can have "hideFrame": true to fold away the empty picture area (for text-only storyboards).
 "label" (any card) replaces the small header above the card, e.g. "Hook" instead of "Scene 01"; scenes can also have a "title".
 
@@ -161,6 +164,8 @@ export function parseImport(text: string): ParsedImport {
         data.status = (STATUSES.has(str(c.status) ?? '') ? str(c.status) : 'brief') as ProjectStatus;
         break;
     }
+    const skin = parseSkin(c.style);
+    if (skin) data.skin = skin;
     const label = str(c.label, 60);
     if (label) data.label = label;
     if (type === 'scene' && str(c.title)) data.title = str(c.title, 120);

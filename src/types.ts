@@ -1,4 +1,5 @@
 import type { Edge, Node } from '@xyflow/react';
+import type { Skin } from './skins';
 
 export type CardType =
   | 'note'
@@ -65,6 +66,8 @@ export interface CardData extends Record<string, unknown> {
   versions?: VideoVersion[];
   versionId?: string;
   approvals?: Approval[];
+  /** Card style: a preset, a color / gradient or a picture as the whole card's background. */
+  skin?: Skin;
   /** Custom header text replacing the card type ("Note", "Scene 01"…). */
   label?: string;
   textSize?: 'sm' | 'lg';
