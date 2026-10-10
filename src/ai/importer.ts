@@ -34,6 +34,7 @@ fenced code block tagged \`notebase\` containing JSON in this shape:
 
 Text fields (text, audio, note text) may use light formatting: **bold**, *italic*, ==highlight==, ~~strike~~,
 colored text like :red[this] (red, orange, yellow, green, blue, purple, pink, gray), "# " for a big line and "- " for bullets.
+Scenes can have "hideFrame": true to fold away the empty picture area (for text-only storyboards).
 "label" (any card) replaces the small header above the card, e.g. "Hook" instead of "Scene 01"; scenes can also have a "title".
 
 Rules: "type" is one of scene, note, todo, heading, link, video, image, color, project. Scene "shot" is usually one of
@@ -116,6 +117,7 @@ export function parseImport(text: string): ParsedImport {
         set('audio', 500);
         set('prompt', 2000);
         data.text = str(c.text ?? c.description) ?? '';
+        if (c.hideFrame === true) data.hideFrame = true;
         break;
       case 'note':
         set('title', 200);
@@ -215,7 +217,7 @@ function estimateHeight(type: CardType, d: CardData) {
     (s ?? '').split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0);
   switch (type) {
     case 'scene':
-      return 300 + textLines(d.text, 30) * 22 + (d.prompt ? 40 + textLines(d.prompt, 30) * 22 : 0);
+      return (d.hideFrame ? 160 : 300) + textLines(d.text, 30) * 22 + (d.prompt ? 40 + textLines(d.prompt, 30) * 22 : 0);
     case 'note':
       return 80 + textLines(d.text) * 22 + (d.title ? 24 : 0);
     case 'todo':

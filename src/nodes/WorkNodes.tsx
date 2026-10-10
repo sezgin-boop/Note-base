@@ -1,5 +1,17 @@
 import type { NodeProps } from '@xyflow/react';
-import { Briefcase, ChevronDown, Clapperboard, Copy, ImagePlus, LayoutDashboard, Palette, Sparkles, Volume2 } from 'lucide-react';
+import {
+  Briefcase,
+  ChevronDown,
+  Clapperboard,
+  Copy,
+  Image as ImageIcon,
+  ImagePlus,
+  LayoutDashboard,
+  Palette,
+  Sparkles,
+  Volume2,
+  X,
+} from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { saveMedia, useMediaUrl, usePreviewUrl } from '../db';
 import { useRef, useState } from 'react';
@@ -35,6 +47,8 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
     const file = await pickFile('image/*');
     if (file) updateData(id, { mediaId: await saveMedia(file) });
   };
+  const readOnly = useStore((s) => s.readOnly);
+  const setFrame = (hide: boolean) => updateData(id, { hideFrame: hide || undefined });
   return (
     <Shell
       icon={<Clapperboard size={12} />}
@@ -43,6 +57,14 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
       color={data.color || '#34d399'}
       resizable="width"
       minWidth={200}
+      actions={
+        data.hideFrame &&
+        !readOnly && (
+          <button className="nodrag icon-btn scene-frame-show" title="Show frame" onClick={() => setFrame(false)}>
+            <ImageIcon size={12} />
+          </button>
+        )
+      }
     >
       <input
         className="nodrag card-title-input"
@@ -50,14 +72,31 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
         placeholder="Title (e.g. Hook)"
         onChange={(e) => updateData(id, { title: e.target.value })}
       />
-      <div className="scene-thumb nodrag" onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}>
-        {src ? (
-          preview && <img src={preview} alt="" draggable={false} decoding="async" />
-        ) : (
-          <span>
-            <ImagePlus size={16} /> Add frame
-          </span>
-        )}
+      {/* The frame area folds away smoothly (grid rows 1fr → 0fr) when hidden. */}
+      <div className={`scene-thumb-fold ${data.hideFrame ? 'off' : ''}`} aria-hidden={data.hideFrame}>
+        <div className="scene-thumb-inner">
+          <div className="scene-thumb nodrag" onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}>
+            {src ? (
+              preview && <img src={preview} alt="" draggable={false} decoding="async" />
+            ) : (
+              <span>
+                <ImagePlus size={16} /> Add frame
+              </span>
+            )}
+            {!readOnly && (
+              <button
+                className="scene-thumb-hide"
+                title="Hide frame"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFrame(true);
+                }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
       <div className="scene-meta">
         <input

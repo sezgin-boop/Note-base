@@ -1920,7 +1920,28 @@ a.side-btn {
 }
 
 /* Scene */
+.scene-thumb-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-bottom: 0;
+  transition:
+    grid-template-rows 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s,
+    margin 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.scene-thumb-fold.off {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  /* cancel the card body's gap so nothing is left where the frame was */
+  margin-bottom: -7px;
+  pointer-events: none;
+}
+.scene-thumb-inner {
+  min-height: 0;
+  overflow: hidden;
+}
 .scene-thumb {
+  position: relative;
   aspect-ratio: 16 / 9;
   border-radius: 11px;
   overflow: hidden;
@@ -1943,6 +1964,43 @@ a.side-btn {
 .scene-thumb:hover {
   border-color: var(--brand);
   color: var(--brand);
+}
+.scene-thumb-hide {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity 0.15s,
+    transform 0.15s,
+    background 0.15s;
+}
+.scene-thumb:hover .scene-thumb-hide,
+.card.is-selected .scene-thumb-hide {
+  opacity: 1;
+  transform: scale(1);
+}
+.scene-thumb-hide:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+@media (pointer: coarse) {
+  .scene-thumb-hide {
+    opacity: 0.85;
+    transform: none;
+    width: 30px;
+    height: 30px;
+  }
+}
+.scene-frame-show {
+  animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .scene-thumb:has(img) {
   border-style: solid;

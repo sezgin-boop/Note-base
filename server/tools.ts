@@ -354,7 +354,8 @@ const addMediaTool: Tool = {
   },
 };
 
-const EDITABLE: Record<string, 'string' | 'number' | 'tags' | 'items'> = {
+const EDITABLE: Record<string, 'string' | 'number' | 'tags' | 'items' | 'boolean'> = {
+  hideFrame: 'boolean',
   text: 'string',
   title: 'string',
   label: 'string',
@@ -385,7 +386,7 @@ const updateCardTool: Tool = {
   description:
     'Change fields of one card (ids come from read_board): text, title, label (the small header), scene shot / duration / ' +
     'audio / prompt / number, job client / deadline / fee / status, color, caption, url, tags, publishDate, platform, or a ' +
-    "list's items. Sections also take collapsed (true folds the section into a compact bar, false opens it), icon (an " +
+    "list's items. Scenes also take hideFrame (true hides the picture area). Sections also take collapsed (true folds the section into a compact bar, false opens it), icon (an " +
     'emoji) and look (tint, solid, outline, dashed). Only the given fields change; an empty string clears a field.',
   inputSchema: {
     type: 'object',
@@ -423,6 +424,7 @@ const updateCardTool: Tool = {
           continue;
         }
         if (kind === 'number') patch[k] = Number(v) || undefined;
+        else if (kind === 'boolean') patch[k] = v === true || v === 'true' || undefined;
         else if (kind === 'tags') patch.tags = Array.isArray(v) ? v.map((t) => String(t).replace(/^#/, '').toLowerCase()) : [];
         else if (kind === 'items')
           patch.items = (Array.isArray(v) ? v : []).map((i: any) =>

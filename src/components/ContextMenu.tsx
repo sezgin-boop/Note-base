@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   FoldVertical,
+  Image as ImageIcon,
   UnfoldVertical,
   Maximize,
   MoreHorizontal,
@@ -131,6 +132,9 @@ export function ContextMenu() {
     const frames = (selected.length ? selected : [node]).filter((n) => n.type === 'frame');
     const folded = frames.some((f) => f.data.collapsed);
     const onlyFrames = frames.length > 0 && frames.length === (selected.length || 1);
+    const scenes = (selected.length ? selected : [node]).filter((n) => n.type === 'scene');
+    const framesHidden = scenes.length > 0 && scenes.every((n) => n.data.hideFrame);
+    const allScenes = s.nodes.filter((n) => n.type === 'scene');
     content = (
       <>
         <div className="menu-head">
@@ -169,6 +173,29 @@ export function ContextMenu() {
             onClick={() => {
               const label = prompt('Card header (leave empty for the default)', node.data.label ?? '');
               if (label !== null) s.updateData(node.id, { label: label.trim() || undefined });
+            }}
+          />
+        )}
+        {!ro && scenes.length > 0 && (
+          <Item
+            icon={ImageIcon}
+            label={`${framesHidden ? 'Show' : 'Hide'} frame${scenes.length > 1 ? 's' : ''}`}
+            onClick={() =>
+              s.patchSelected((n) =>
+                n.type === 'scene' ? { ...n, data: { ...n.data, hideFrame: !framesHidden || undefined } } : n,
+              )
+            }
+          />
+        )}
+        {!ro && scenes.length > 0 && allScenes.length > scenes.length && (
+          <Item
+            icon={ImageIcon}
+            label={`${framesHidden ? 'Show' : 'Hide'} frames on all ${allScenes.length} scenes`}
+            onClick={() => {
+              s.checkpoint();
+              s.setNodes((ns) =>
+                ns.map((n) => (n.type === 'scene' ? { ...n, data: { ...n.data, hideFrame: !framesHidden || undefined } } : n)),
+              );
             }}
           />
         )}

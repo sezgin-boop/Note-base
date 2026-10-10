@@ -79,6 +79,8 @@ export interface CardData extends Record<string, unknown> {
   audio?: string;
   /** Text-to-image prompt for generating this scene's frame. */
   prompt?: string;
+  /** The frame (picture) area is folded away. */
+  hideFrame?: boolean;
   // project
   client?: string;
   deadline?: string;
