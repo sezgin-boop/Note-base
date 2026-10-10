@@ -25,6 +25,9 @@ export interface RemoteComment {
   body: string;
   createdAt: string;
   done: boolean;
+  /** Video version id; null for comments made before versions existed (= first version). */
+  version: string | null;
+  kind: 'comment' | 'approval';
 }
 
 export interface SharedBundle {
@@ -35,7 +38,7 @@ export interface SharedBundle {
 }
 
 export async function fetchShared(shareId: string): Promise<SharedBundle | null> {
-  if (!supabase) throw new Error('Bulut ayarlanmamış');
+  if (!supabase) throw new Error('Cloud is not set up');
   const { data, error } = await supabase.rpc('get_shared', { p_share: shareId });
   if (error) throw error;
   return data as SharedBundle | null;
@@ -43,9 +46,17 @@ export async function fetchShared(shareId: string): Promise<SharedBundle | null>
 
 export async function addSharedComment(
   shareId: string,
-  c: { boardId: string; nodeId: string; t: number | null; author: string; body: string },
+  c: {
+    boardId: string;
+    nodeId: string;
+    t: number | null;
+    author: string;
+    body: string;
+    version?: string;
+    kind?: 'comment' | 'approval';
+  },
 ): Promise<string> {
-  if (!supabase) throw new Error('Bulut ayarlanmamış');
+  if (!supabase) throw new Error('Cloud is not set up');
   const { data, error } = await supabase.rpc('add_shared_comment', {
     p_share: shareId,
     p_board: c.boardId,
@@ -53,6 +64,9 @@ export async function addSharedComment(
     p_t: c.t,
     p_author: c.author,
     p_body: c.body,
+    // Only sent when needed, so plain comments keep working on databases set up before versions.
+    ...(c.version && c.version !== 'v1' ? { p_version: c.version } : {}),
+    ...(c.kind === 'approval' ? { p_kind: 'approval' } : {}),
   });
   if (error) throw error;
   return data as string;
@@ -67,4 +81,6 @@ export const toRemoteComment = (r: any): RemoteComment => ({
   body: r.body,
   createdAt: r.created_at ?? r.createdAt,
   done: r.done,
+  version: r.version ?? null,
+  kind: r.kind === 'approval' ? 'approval' : 'comment',
 });

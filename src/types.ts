@@ -27,6 +27,25 @@ export interface VideoComment {
   author?: string;
   at: number;
   done?: boolean;
+  /** Version id the comment belongs to; missing means the first version. */
+  v?: string;
+}
+
+export interface VideoVersion {
+  id: string;
+  label: string;
+  mediaId?: string;
+  url?: string;
+  aspect?: number;
+  at: number;
+}
+
+export interface Approval {
+  /** Id of the client's approval row, so it is applied once. */
+  id: string;
+  version: string;
+  by: string;
+  at: number;
 }
 
 export type ProjectStatus = 'brief' | 'shoot' | 'edit' | 'revision' | 'delivered' | 'paid';
@@ -43,6 +62,13 @@ export interface CardData extends Record<string, unknown> {
   // video
   comments?: VideoComment[];
   aspect?: number;
+  versions?: VideoVersion[];
+  versionId?: string;
+  approvals?: Approval[];
+  // planning (any card)
+  tags?: string[];
+  publishDate?: string;
+  platform?: string;
   // scene
   number?: number;
   shot?: string;
@@ -69,6 +95,8 @@ export interface BoardMeta {
   /** Public share token; the board and its sub-boards are readable via /s/<shareId>. */
   shareId?: string | null;
   shareComments?: boolean;
+  /** The quick-capture inbox board. */
+  inbox?: boolean;
 }
 
 export interface BoardContent {
@@ -79,11 +107,11 @@ export interface BoardContent {
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {
   brief: 'Brief',
-  shoot: 'Çekim',
-  edit: 'Kurgu',
-  revision: 'Revizyon',
-  delivered: 'Teslim',
-  paid: 'Ödendi',
+  shoot: 'Shoot',
+  edit: 'Edit',
+  revision: 'Revision',
+  delivered: 'Delivered',
+  paid: 'Paid',
 };
 
 export const STATUS_COLORS: Record<ProjectStatus, string> = {
@@ -97,4 +125,17 @@ export const STATUS_COLORS: Record<ProjectStatus, string> = {
 
 export const ACCENTS = ['', '#a78bfa', '#38bdf8', '#34d399', '#f59e0b', '#f87171', '#f472b6'];
 
-export const SHOT_TYPES = ['Geniş', 'Orta', 'Yakın', 'Çok yakın', 'Insert', 'POV', 'Drone', 'B-roll'];
+export const SHOT_TYPES = ['Wide', 'Medium', 'Close-up', 'Extreme close-up', 'Insert', 'POV', 'Drone', 'B-roll'];
+
+export const PLATFORMS: Record<string, string> = {
+  YouTube: '#f87171',
+  Shorts: '#fb7185',
+  Instagram: '#f472b6',
+  Reels: '#e879f9',
+  TikTok: '#2dd4bf',
+  X: '#a1a1aa',
+  LinkedIn: '#60a5fa',
+  Podcast: '#a78bfa',
+  Client: '#38bdf8',
+  Other: '#fbbf24',
+};

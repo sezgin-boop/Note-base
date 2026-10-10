@@ -9,7 +9,7 @@ export async function addTyped(type: CardType, at: XYPosition) {
   const size = SIZES[type];
   const pos = { x: at.x - (size?.width ?? 200) / 2, y: at.y - (size?.height ?? 120) / 2 };
   if (type === 'board') {
-    const boardId = await s.createBoard({ name: 'Yeni pano', parentId: s.currentId });
+    const boardId = await s.createBoard({ name: 'New board', parentId: s.currentId });
     return s.addCard('board', pos, { boardId });
   }
   if (type === 'scene') {

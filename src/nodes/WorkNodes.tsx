@@ -19,7 +19,7 @@ export function DeadlineBadge({ deadline, status }: { deadline?: string; status?
   const left = daysLeft(deadline);
   if (left === null || status === 'delivered' || status === 'paid') return null;
   const tone = left < 0 ? 'late' : left <= 3 ? 'soon' : 'ok';
-  const text = left < 0 ? `${-left} gün gecikti` : left === 0 ? 'Bugün' : `${left} gün kaldı`;
+  const text = left < 0 ? `${-left}d overdue` : left === 0 ? 'Due today' : `${left}d left`;
   return <span className={`deadline ${tone}`}>{text}</span>;
 }
 
@@ -34,7 +34,7 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
   return (
     <Shell
       icon={<Clapperboard size={12} />}
-      label={`Sahne ${String(data.number ?? 1).padStart(2, '0')}`}
+      label={`Scene ${String(data.number ?? 1).padStart(2, '0')}`}
       selected={selected}
       color={data.color || '#34d399'}
       resizable="width"
@@ -45,7 +45,7 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
           <img src={src} alt="" draggable={false} />
         ) : (
           <span>
-            <ImagePlus size={16} /> Kare ekle
+            <ImagePlus size={16} /> Add frame
           </span>
         )}
       </div>
@@ -55,28 +55,29 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
           type="number"
           min={1}
           value={data.number ?? 1}
-          title="Sahne no"
+          title="Scene number"
           onChange={(e) => updateData(id, { number: Number(e.target.value) })}
         />
         <select className="nodrag mini" value={data.shot} onChange={(e) => updateData(id, { shot: e.target.value })}>
-          {SHOT_TYPES.map((s) => (
+          {/* Keep shot names typed on older boards selectable. */}
+          {[...SHOT_TYPES, ...(data.shot && !SHOT_TYPES.includes(data.shot) ? [data.shot] : [])].map((s) => (
             <option key={s}>{s}</option>
           ))}
         </select>
         <input
           className="nodrag mini"
           value={data.duration ?? ''}
-          placeholder="Süre"
+          placeholder="Length"
           onChange={(e) => updateData(id, { duration: e.target.value })}
         />
       </div>
-      <AutoText value={data.text ?? ''} placeholder="Ne oluyor?" onChange={(text) => updateData(id, { text })} />
+      <AutoText value={data.text ?? ''} placeholder="What happens?" onChange={(text) => updateData(id, { text })} />
       <div className="field">
         <span>🔊</span>
         <input
           className="nodrag"
           value={data.audio ?? ''}
-          placeholder="Ses / müzik / VO"
+          placeholder="Sound / music / VO"
           onChange={(e) => updateData(id, { audio: e.target.value })}
         />
       </div>
@@ -93,7 +94,7 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
   return (
     <Shell
       icon={<Briefcase size={12} />}
-      label="İş"
+      label="Job"
       selected={selected}
       color={STATUS_COLORS[status]}
       resizable="width"
@@ -104,7 +105,7 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
         ref={titleRef}
         className="nodrag card-title-input"
         value={data.title ?? ''}
-        placeholder="İş adı"
+        placeholder="Job name"
         onChange={(e) => updateData(id, { title: e.target.value })}
       />
       <div className="status-row nodrag">
@@ -120,7 +121,7 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
         ))}
       </div>
       <div className="field">
-        <span>Müşteri</span>
+        <span>Client</span>
         <input
           className="nodrag"
           value={data.client ?? ''}
@@ -129,7 +130,7 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
         />
       </div>
       <div className="field">
-        <span>Teslim</span>
+        <span>Due</span>
         <input
           className="nodrag"
           type="date"
@@ -138,7 +139,7 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
         />
       </div>
       <div className="field">
-        <span>Ücret</span>
+        <span>Fee</span>
         <input
           className="nodrag"
           value={data.fee ?? ''}
@@ -146,7 +147,7 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
           onChange={(e) => updateData(id, { fee: e.target.value })}
         />
       </div>
-      <AutoText value={data.text ?? ''} placeholder="Notlar" onChange={(text) => updateData(id, { text })} />
+      <AutoText value={data.text ?? ''} placeholder="Notes" onChange={(text) => updateData(id, { text })} />
     </Shell>
   );
 }
@@ -160,7 +161,7 @@ export function ColorNode({ id, data, selected }: NodeProps<CardNode>) {
         <input type="color" value={hex} onChange={(e) => updateData(id, { hex: e.target.value })} />
       </label>
       <input className="nodrag color-name" value={data.title ?? ''} onChange={(e) => updateData(id, { title: e.target.value })} />
-      <button className="nodrag color-hex" title="Kopyala" onClick={() => navigator.clipboard?.writeText(hex)}>
+      <button className="nodrag color-hex" title="Copy" onClick={() => navigator.clipboard?.writeText(hex)}>
         <Palette size={11} /> {hex.toUpperCase()}
       </button>
       <Handles />
@@ -176,11 +177,11 @@ export function BoardNode({ data, selected }: NodeProps<CardNode>) {
     <div
       className={`board-card ${selected ? 'is-selected' : ''} ${board ? '' : 'missing'}`}
       onDoubleClick={() => board && openBoard(board.id)}
-      title="Açmak için çift tıkla"
+      title="Double-click to open"
     >
       <div className="board-tile">{board ? board.icon : <LayoutDashboard size={28} />}</div>
-      <div className="board-name">{board?.name ?? 'Silinmiş pano'}</div>
-      {board && <div className="muted small">{childCount ? `${childCount} alt pano` : 'Pano'}</div>}
+      <div className="board-name">{board?.name ?? 'Deleted board'}</div>
+      {board && <div className="muted small">{childCount ? `${childCount} sub-board${childCount > 1 ? 's' : ''}` : 'Board'}</div>}
       <Handles />
     </div>
   );
@@ -191,7 +192,7 @@ export function FrameNode({ id, data, selected }: NodeProps<CardNode>) {
   return (
     <Shell
       icon={<LayoutDashboard size={12} />}
-      label="Bölüm"
+      label="Section"
       selected={selected}
       color={data.color}
       resizable
@@ -203,7 +204,7 @@ export function FrameNode({ id, data, selected }: NodeProps<CardNode>) {
       <input
         className="nodrag frame-title"
         value={data.title ?? ''}
-        placeholder="Bölüm adı"
+        placeholder="Section name"
         onChange={(e) => updateData(id, { title: e.target.value })}
       />
     </Shell>

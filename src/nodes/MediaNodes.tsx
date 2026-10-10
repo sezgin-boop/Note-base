@@ -26,12 +26,12 @@ export function EmptyMedia({ id, kind }: { id: string; kind: 'image' | 'video' }
   return (
     <div className="media-empty">
       <button className="nodrag btn" onClick={upload}>
-        <Upload size={14} /> {kind === 'image' ? 'Görsel yükle' : 'Video yükle'}
+        <Upload size={14} /> {kind === 'image' ? 'Upload image' : 'Upload video'}
       </button>
-      <span className="muted">ya da bağlantı yapıştır</span>
+      <span className="muted">or paste a link</span>
       <input
         className="nodrag url-input"
-        placeholder={kind === 'image' ? 'https://…/gorsel.jpg' : 'YouTube, Vimeo ya da .mp4'}
+        placeholder={kind === 'image' ? 'https://…/image.jpg' : 'YouTube, Vimeo or .mp4'}
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && url.trim() && updateData(id, { url: url.trim() })}
@@ -46,7 +46,7 @@ export function Caption({ id, value }: { id: string; value?: string }) {
     <input
       className="nodrag caption"
       value={value ?? ''}
-      placeholder="Açıklama ekle"
+      placeholder="Add a caption"
       onChange={(e) => updateData(id, { caption: e.target.value })}
     />
   );
@@ -59,7 +59,7 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
   return (
     <Shell
       icon={<ImageIcon size={12} />}
-      label="Görsel"
+      label="Image"
       selected={selected}
       resizable
       minWidth={120}
@@ -67,7 +67,7 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
       className="media-card"
       actions={
         src && (
-          <button className="nodrag icon-btn" title="Büyüt" onClick={() => setLightbox({ src, kind: 'image' })}>
+          <button className="nodrag icon-btn" title="Enlarge" onClick={() => setLightbox({ src, kind: 'image' })}>
             <Maximize2 size={12} />
           </button>
         )
@@ -93,12 +93,12 @@ export function LinkNode({ id, data, selected }: NodeProps<CardNode>) {
   const url = data.url ?? '';
   const yt = url ? youtubeId(url) : null;
   return (
-    <Shell icon={<Link2 size={12} />} label="Bağlantı" selected={selected} resizable="width" minWidth={180}>
+    <Shell icon={<Link2 size={12} />} label="Link" selected={selected} resizable="width" minWidth={180}>
       {!url ? (
         <input
           autoFocus
           className="nodrag url-input"
-          placeholder="Bağlantı yapıştır ve Enter"
+          placeholder="Paste a link and press Enter"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -120,7 +120,7 @@ export function LinkNode({ id, data, selected }: NodeProps<CardNode>) {
               />
               <span className="muted">{hostname(url)}</span>
             </div>
-            <a className="nodrag icon-btn" href={url} target="_blank" rel="noreferrer" title="Aç">
+            <a className="nodrag icon-btn" href={url} target="_blank" rel="noreferrer" title="Open">
               <ExternalLink size={13} />
             </a>
           </div>

@@ -87,7 +87,7 @@ export async function exportWorkspace(): Promise<Blob> {
 
 export async function importWorkspace(file: File) {
   const parsed = JSON.parse(await file.text());
-  if (parsed?.app !== 'notebase') throw new Error('Geçersiz dosya');
+  if (parsed?.app !== 'notebase') throw new Error('Not a Notebase backup file');
   for (const [key, value] of Object.entries<any>(parsed.data)) {
     if (value && typeof value === 'object' && '__blob' in value) {
       await set(key, await (await fetch(value.__blob)).blob());

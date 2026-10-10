@@ -19,17 +19,17 @@ import { useStore } from '../store';
 import type { CardType } from '../types';
 
 export const TOOLS: { type: CardType; label: string; key: string; icon: React.ReactNode }[] = [
-  { type: 'note', label: 'Not', key: 'N', icon: <StickyNote size={17} /> },
-  { type: 'todo', label: 'Liste', key: 'L', icon: <ListTodo size={17} /> },
-  { type: 'heading', label: 'Başlık', key: 'H', icon: <Heading1 size={17} /> },
-  { type: 'image', label: 'Görsel', key: 'I', icon: <Image size={17} /> },
+  { type: 'note', label: 'Note', key: 'N', icon: <StickyNote size={17} /> },
+  { type: 'todo', label: 'List', key: 'L', icon: <ListTodo size={17} /> },
+  { type: 'heading', label: 'Heading', key: 'H', icon: <Heading1 size={17} /> },
+  { type: 'image', label: 'Image', key: 'I', icon: <Image size={17} /> },
   { type: 'video', label: 'Video', key: 'V', icon: <Video size={17} /> },
-  { type: 'link', label: 'Bağlantı', key: 'K', icon: <Link2 size={17} /> },
-  { type: 'scene', label: 'Sahne (storyboard)', key: 'S', icon: <Clapperboard size={17} /> },
-  { type: 'project', label: 'İş / müşteri', key: 'J', icon: <Briefcase size={17} /> },
-  { type: 'color', label: 'Renk', key: 'C', icon: <Palette size={17} /> },
-  { type: 'frame', label: 'Bölüm', key: 'F', icon: <Square size={17} /> },
-  { type: 'board', label: 'Pano', key: 'B', icon: <LayoutDashboard size={17} /> },
+  { type: 'link', label: 'Link', key: 'K', icon: <Link2 size={17} /> },
+  { type: 'scene', label: 'Scene (storyboard)', key: 'S', icon: <Clapperboard size={17} /> },
+  { type: 'project', label: 'Client job', key: 'J', icon: <Briefcase size={17} /> },
+  { type: 'color', label: 'Color', key: 'C', icon: <Palette size={17} /> },
+  { type: 'frame', label: 'Section', key: 'F', icon: <Square size={17} /> },
+  { type: 'board', label: 'Board', key: 'B', icon: <LayoutDashboard size={17} /> },
 ];
 
 export function useAddAtCenter() {
@@ -70,13 +70,13 @@ export function Toolbar() {
       <button className="tool" disabled={!past.length} onClick={undo}>
         <Undo2 size={17} />
         <span className="tip">
-          Geri al <kbd>⌘Z</kbd>
+          Undo <kbd>⌘Z</kbd>
         </span>
       </button>
       <button className="tool" disabled={!future.length} onClick={redo}>
         <Redo2 size={17} />
         <span className="tip">
-          Yinele <kbd>⇧⌘Z</kbd>
+          Redo <kbd>⇧⌘Z</kbd>
         </span>
       </button>
     </div>

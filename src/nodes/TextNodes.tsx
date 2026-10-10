@@ -16,7 +16,7 @@ export function AccentPicker({ id, value }: { id: string; value?: string }) {
           key={c || 'none'}
           className={`accent-dot ${(value ?? '') === c ? 'on' : ''}`}
           style={{ background: c || 'transparent' }}
-          title={c || 'Renksiz'}
+          title={c || 'No color'}
           onClick={() => updateData(id, { color: c })}
         />
       ))}
@@ -30,7 +30,7 @@ export function NoteNode({ id, data, selected }: NodeProps<CardNode>) {
   return (
     <Shell
       icon={<StickyNote size={12} />}
-      label="Not"
+      label="Note"
       selected={selected}
       color={data.color}
       resizable="width"
@@ -40,13 +40,13 @@ export function NoteNode({ id, data, selected }: NodeProps<CardNode>) {
       <input
         className="nodrag card-title-input"
         value={data.title ?? ''}
-        placeholder="Başlık"
+        placeholder="Title"
         onChange={(e) => updateData(id, { title: e.target.value })}
       />
       <AutoText
         autoFocus={focus}
         value={data.text ?? ''}
-        placeholder="Bir şeyler yaz…"
+        placeholder="Write something…"
         onChange={(text) => updateData(id, { text })}
       />
     </Shell>
@@ -62,7 +62,7 @@ export function HeadingNode({ id, data, selected }: NodeProps<CardNode>) {
         autoFocus={focus}
         className="heading-text"
         value={data.text ?? ''}
-        placeholder="Başlık"
+        placeholder="Title"
         onChange={(text) => updateData(id, { text })}
       />
       <Handles />
@@ -89,7 +89,7 @@ export function TodoNode({ id, data, selected }: NodeProps<CardNode>) {
   return (
     <Shell
       icon={<ListTodo size={12} />}
-      label="Liste"
+      label="List"
       selected={selected}
       color={data.color}
       resizable="width"
@@ -107,7 +107,7 @@ export function TodoNode({ id, data, selected }: NodeProps<CardNode>) {
         ref={titleRef}
         className="nodrag card-title-input"
         value={data.title ?? ''}
-        placeholder="Liste adı"
+        placeholder="List name"
         onChange={(e) => updateData(id, { title: e.target.value })}
       />
       {items.length > 0 && (
@@ -125,7 +125,7 @@ export function TodoNode({ id, data, selected }: NodeProps<CardNode>) {
               id={`todo-${item.id}`}
               className="nodrag"
               value={item.text}
-              placeholder="Görev"
+              placeholder="Task"
               onChange={(e) => patch(item.id, { text: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -146,7 +146,7 @@ export function TodoNode({ id, data, selected }: NodeProps<CardNode>) {
         ))}
       </ul>
       <button className="nodrag add-row" onClick={() => add()}>
-        <Plus size={12} /> Görev ekle
+        <Plus size={12} /> Add task
       </button>
     </Shell>
   );

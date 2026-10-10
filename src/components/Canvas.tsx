@@ -9,7 +9,8 @@ import {
   type OnNodeDrag,
   type XYPosition,
 } from '@xyflow/react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { cardTags } from '../tags';
 import { addTyped } from '../actions';
 import { isImageUrl, isVideoUrl, saveMedia } from '../db';
 import { ImageNode, LinkNode } from '../nodes/MediaNodes';
@@ -88,7 +89,16 @@ export function Canvas() {
     background,
     setMenu,
     selectOnly,
+    tagFilter,
   } = useStore();
+  // Tag filter: matching cards stay, the rest fade back.
+  const shownNodes = useMemo(
+    () =>
+      tagFilter
+        ? nodes.map((n) => (n.type === 'frame' || cardTags(n).includes(tagFilter) ? n : { ...n, className: 'dimmed' }))
+        : nodes,
+    [nodes, tagFilter],
+  );
   const rf = useReactFlow();
   const { fromFiles, fromText } = useCreateFrom();
   const mouse = useRef<XYPosition>({ x: 0, y: 0 });
@@ -196,7 +206,7 @@ export function Canvas() {
     >
       <ReactFlow
         key={currentId}
-        nodes={nodes}
+        nodes={shownNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}

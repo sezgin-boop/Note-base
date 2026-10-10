@@ -29,8 +29,8 @@ export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const id = url.searchParams.get('id') ?? '';
   const format = url.searchParams.get('format') ?? 'html';
-  if (!/^[\w-]{6,64}$/.test(id)) return page(404, 'Pano bulunamadı', 'Bağlantı hatalı görünüyor.');
-  if (!SUPABASE_URL || !SUPABASE_KEY) return page(503, 'Bulut ayarlanmamış', 'Bu sitenin bulut bağlantısı henüz yapılmamış.');
+  if (!/^[\w-]{6,64}$/.test(id)) return page(404, 'Board not found', 'This link looks incorrect.');
+  if (!SUPABASE_URL || !SUPABASE_KEY) return page(503, 'Cloud not set up', 'This site is not connected to its cloud yet.');
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_shared`, {
     method: 'POST',
@@ -42,9 +42,9 @@ export default async function handler(req: Request): Promise<Response> {
     },
     body: JSON.stringify({ p_share: id }),
   });
-  if (!res.ok) return page(502, 'Pano yüklenemedi', 'Lütfen biraz sonra tekrar deneyin.');
+  if (!res.ok) return page(502, 'Could not load the board', 'Please try again in a moment.');
   const bundle = await res.json();
-  if (!bundle) return page(404, 'Pano bulunamadı', 'Bu paylaşım kapatılmış ya da bağlantı hatalı.');
+  if (!bundle) return page(404, 'Board not found', 'This link was turned off or is incorrect.');
 
   const origin = `${url.protocol}//${url.host}`;
   const opts: OutlineOptions = {

@@ -20,6 +20,8 @@ export interface OutlineComment {
   author: string;
   body: string;
   done?: boolean;
+  version?: string | null;
+  kind?: string;
 }
 
 export interface OutlineOptions {
@@ -91,27 +93,27 @@ const clip = (s: string, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : 
 
 export function cardLabel(n: CardNode, boardName?: (id: string) => string | undefined): string {
   const d = n.data;
-  if (n.type === 'board') return clip(`Pano: ${(d.boardId && boardName?.(d.boardId)) || 'pano'}`);
+  if (n.type === 'board') return clip(`Board: ${(d.boardId && boardName?.(d.boardId)) || 'board'}`);
   if (n.type === 'scene') {
     const desc = firstLine(d.text);
-    return clip(`Sahne ${String(d.number ?? 1).padStart(2, '0')}${desc ? `: ${desc}` : ''}`);
+    return clip(`Scene ${String(d.number ?? 1).padStart(2, '0')}${desc ? `: ${desc}` : ''}`);
   }
   const raw = d.title || firstLine(d.text) || d.caption || d.hex || d.url || KIND[n.type ?? 'note'];
   return clip(String(raw));
 }
 
 const KIND: Record<string, string> = {
-  note: 'Not',
-  heading: 'Başlık',
-  todo: 'Liste',
-  image: 'Görsel',
+  note: 'Note',
+  heading: 'Heading',
+  todo: 'List',
+  image: 'Image',
   video: 'Video',
-  link: 'Bağlantı',
-  board: 'Pano',
-  frame: 'Bölüm',
-  scene: 'Sahne',
-  project: 'İş',
-  color: 'Renk',
+  link: 'Link',
+  board: 'Board',
+  frame: 'Section',
+  scene: 'Scene',
+  project: 'Job',
+  color: 'Color',
 };
 
 function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: OutlineOptions): Item | null {
@@ -122,88 +124,115 @@ function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: Outlin
       .map((l) => l.trimEnd())
       .filter((l, i, a) => l || (i > 0 && a[i - 1]));
   const media = d.mediaId ? opts.mediaUrl(d.mediaId) : (d.url ?? null);
+  const versions = d.versions?.length ? d.versions : null;
+  const versionLabel = (v?: string | null) => (versions ? `${versions.find((x) => x.id === (v ?? 'v1'))?.label ?? 'V1'} ` : '');
+  const clientRows = (opts.comments ?? []).filter((c) => c.nodeId === n.id);
   const comments = [
-    ...(d.comments ?? []).map((c) => ({ t: c.t, author: c.author || 'Ben', body: c.text, done: c.done })),
-    ...(opts.comments ?? []).filter((c) => c.nodeId === n.id),
+    ...(d.comments ?? []).map((c) => ({ t: c.t, author: c.author || 'Owner', body: c.text, done: c.done, version: c.v })),
+    ...clientRows.filter((c) => c.kind !== 'approval'),
   ]
-    .sort((a, b) => (a.t ?? -1) - (b.t ?? -1))
+    .sort((a, b) => (a.version ?? 'v1').localeCompare(b.version ?? 'v1') || (a.t ?? -1) - (b.t ?? -1))
     .map(
       (c) =>
-        `${c.t !== null && c.t !== undefined ? `[${fmtTime(c.t)}] ` : ''}${c.author}: ${c.body}${c.done ? ' (çözüldü)' : ''}`,
+        `${versionLabel(c.version)}${c.t !== null && c.t !== undefined ? `[${fmtTime(c.t)}] ` : ''}${c.author}: ${c.body}${c.done ? ' (resolved)' : ''}`,
     );
+  const approvals = [
+    ...(d.approvals ?? []).map((a) => ({ version: a.version, by: a.by })),
+    ...clientRows.filter((c) => c.kind === 'approval').map((c) => ({ version: c.version ?? 'v1', by: c.author })),
+  ];
 
   switch (n.type) {
     case 'heading':
-      return d.text?.trim() ? { icon: '🔠', kind: 'Başlık', title: d.text.trim() } : null;
+      return d.text?.trim() ? { icon: '🔠', kind: 'Heading', title: d.text.trim() } : null;
     case 'note':
       if (!d.title && !d.text?.trim()) return null;
-      return { icon: '📝', kind: 'Not', title: d.title, lines: lines(d.text) };
+      return { icon: '📝', kind: 'Note', title: d.title, lines: lines(d.text) };
     case 'todo': {
       const items = (d.items ?? []).filter((i) => i.text.trim());
       const done = items.filter((i) => i.done).length;
       return {
         icon: '✅',
-        kind: 'Liste',
-        title: d.title || 'Liste',
-        meta: [`${done}/${items.length} tamamlandı`],
+        kind: 'List',
+        title: d.title || 'List',
+        meta: [`${done}/${items.length} done`],
         checklist: items,
       };
     }
     case 'image':
       return {
         icon: '🖼️',
-        kind: 'Görsel',
+        kind: 'Image',
         title: d.caption,
-        image: media ? { url: media, alt: d.caption || 'Görsel' } : undefined,
-        lines: media ? undefined : ['(görsel yalnızca sahibinin cihazında, buluta yüklenmemiş)'],
+        image: media ? { url: media, alt: d.caption || 'Image' } : undefined,
+        lines: media ? undefined : ['(image only on the owner’s device, not uploaded to the cloud)'],
       };
     case 'video':
       return {
         icon: '🎬',
         kind: 'Video',
         title: d.caption,
-        link: media ? { url: media, text: d.url ? d.url : 'Videoyu aç' } : undefined,
-        lines: media ? undefined : ['(video yalnızca sahibinin cihazında, buluta yüklenmemiş)'],
+        meta: versions
+          ? [
+              `Versions: ${versions.map((v) => v.label).join(', ')} (showing ${versions.find((v) => v.id === d.versionId)?.label ?? versions.at(-1)!.label})`,
+              ...[...new Map(approvals.map((a) => [a.version, a])).values()].map(
+                (a) => `${versionLabel(a.version).trim() || 'V1'} approved by ${a.by}`,
+              ),
+            ]
+          : approvals.map((a) => `Approved by ${a.by}`),
+        link: media ? { url: media, text: d.url ? d.url : 'Open video' } : undefined,
+        lines: media ? undefined : ['(video only on the owner’s device, not uploaded to the cloud)'],
         comments,
       };
     case 'link':
-      return d.url ? { icon: '🔗', kind: 'Bağlantı', link: { url: d.url, text: d.title || d.url } } : null;
+      return d.url ? { icon: '🔗', kind: 'Link', link: { url: d.url, text: d.title || d.url } } : null;
     case 'board': {
       const b = d.boardId ? boardsById.get(d.boardId) : undefined;
       return {
         icon: b?.icon ?? '📁',
-        kind: 'Alt pano',
-        title: b ? b.name : '(paylaşılmayan pano)',
-        lines: b ? ['İçeriği aşağıda ayrı başlık altında.'] : undefined,
+        kind: 'Sub-board',
+        title: b ? b.name : '(board not shared)',
+        lines: b ? ['Its content follows below under its own heading.'] : undefined,
       };
     }
     case 'scene':
       return {
         icon: '🎞️',
-        kind: 'Sahne',
-        title: `Sahne ${String(d.number ?? 1).padStart(2, '0')}`,
+        kind: 'Scene',
+        title: `Scene ${String(d.number ?? 1).padStart(2, '0')}`,
         meta: [d.shot, d.duration].filter(Boolean) as string[],
-        lines: [...lines(d.text), ...(d.audio ? [`Ses: ${d.audio}`] : [])],
-        image: d.mediaId && opts.mediaUrl(d.mediaId) ? { url: opts.mediaUrl(d.mediaId)!, alt: 'Sahne karesi' } : undefined,
+        lines: [...lines(d.text), ...(d.audio ? [`Sound: ${d.audio}`] : [])],
+        image: d.mediaId && opts.mediaUrl(d.mediaId) ? { url: opts.mediaUrl(d.mediaId)!, alt: 'Scene frame' } : undefined,
       };
     case 'project':
       return {
         icon: '💼',
-        kind: 'İş',
+        kind: 'Job',
         title: d.title,
         meta: [
-          `Durum: ${STATUS_LABELS[(d.status ?? 'brief') as ProjectStatus]}`,
-          d.client && `Müşteri: ${d.client}`,
-          d.deadline && `Teslim: ${d.deadline}`,
-          d.fee && `Ücret: ${d.fee}`,
+          `Status: ${STATUS_LABELS[(d.status ?? 'brief') as ProjectStatus]}`,
+          d.client && `Client: ${d.client}`,
+          d.deadline && `Due: ${d.deadline}`,
+          d.fee && `Fee: ${d.fee}`,
         ].filter(Boolean) as string[],
         lines: lines(d.text),
       };
     case 'color':
-      return { icon: '🎨', kind: 'Renk', title: d.title, meta: [d.hex ?? ''] };
+      return { icon: '🎨', kind: 'Color', title: d.title, meta: [d.hex ?? ''] };
     default:
       return null;
   }
+}
+
+/** Publish date, platform and tags apply to any card. */
+function withPlanning(it: Item | null, n: CardNode): Item | null {
+  if (!it) return it;
+  const d = n.data;
+  const extra = [
+    d.publishDate && `Publish: ${d.publishDate}${d.platform ? ` on ${d.platform}` : ''}`,
+    !d.publishDate && d.platform && `Platform: ${d.platform}`,
+    d.tags?.length && d.tags.map((t) => `#${t}`).join(' '),
+  ].filter(Boolean) as string[];
+  return extra.length ? { ...it, meta: [...(it.meta ?? []), ...extra] } : it;
 }
 
 function buildDoc(board: OutlineBoard, boardsById: Map<string, OutlineBoard>, opts: OutlineOptions): BoardDoc {
@@ -230,14 +259,14 @@ function buildDoc(board: OutlineBoard, boardsById: Map<string, OutlineBoard>, op
 
   const itemsOf = (list: CardNode[]) =>
     readingOrder(list)
-      .map((n) => toItem(n, boardsById, opts))
+      .map((n) => withPlanning(toItem(n, boardsById, opts), n))
       .filter(Boolean) as Item[];
 
   const sections: Section[] = [];
   const loose = cards.filter((c) => !owner.get(c.id));
-  if (loose.length) sections.push({ title: frames.length ? 'Bölüm dışındaki kartlar' : null, items: itemsOf(loose) });
+  if (loose.length) sections.push({ title: frames.length ? 'Cards outside sections' : null, items: itemsOf(loose) });
   for (const f of readingOrder(frames)) {
-    sections.push({ title: f.data.title || 'Bölüm', items: itemsOf(cards.filter((c) => owner.get(c.id) === f.id)) });
+    sections.push({ title: f.data.title || 'Section', items: itemsOf(cards.filter((c) => owner.get(c.id) === f.id)) });
   }
   // Loose cards usually frame the board (titles, intro), but keep sections in canvas order otherwise.
   if (loose.length && frames.length) {
@@ -281,10 +310,10 @@ function docs(boards: OutlineBoard[], opts: OutlineOptions): BoardDoc[] {
 const idx = (arr: unknown[], v: unknown) => (arr.indexOf(v) === -1 ? 1e9 : arr.indexOf(v));
 
 const INTRO =
-  "Bu belge Notebase'teki görsel bir çalışma panosunun (sonsuz tuval) metin halidir. " +
-  'Kartlar tuvaldeki okuma sırasına göre (yukarıdan aşağı, soldan sağa) listelenir. ' +
-  '"Bölüm"ler kartları gruplayan çerçevelerdir. "Bağlantılar", kartlar arasına çizilmiş okları, yani fikir akışını gösterir. ' +
-  'Alt panolar ayrı başlıklar altında gelir.';
+  'This is the text version of a visual Notebase board (an infinite canvas). ' +
+  'Cards are listed in reading order on the canvas (top to bottom, left to right). ' +
+  '"Sections" are frames that group cards. "Connections" are the arrows drawn between cards — the flow of ideas. ' +
+  'Sub-boards follow under their own headings.';
 
 // ---------- Markdown ----------
 
@@ -292,20 +321,20 @@ export function boardsToMarkdown(boards: OutlineBoard[], opts: OutlineOptions): 
   const ds = docs(boards, opts);
   const root = ds[0];
   const out: string[] = [];
-  out.push(`# ${root ? `${root.icon} ${root.name}` : 'Notebase panosu'}`, '', `> ${INTRO}`);
-  if (opts.viewUrl) out.push('>', `> Etkileşimli pano: ${opts.viewUrl}`);
+  out.push(`# ${root ? `${root.icon} ${root.name}` : 'Notebase board'}`, '', `> ${INTRO}`);
+  if (opts.viewUrl) out.push('>', `> Interactive board: ${opts.viewUrl}`);
   out.push('');
   ds.forEach((d, i) => {
     if (i > 0) out.push('---', '', `# ${d.icon} ${d.name}`, '');
-    if (d.path.length) out.push(`_Konum: ${d.path.join(' / ')} / ${d.name}_`, '');
+    if (d.path.length) out.push(`_Location: ${d.path.join(' / ')} / ${d.name}_`, '');
     for (const s of d.sections) {
       if (s.title) out.push(`## ${s.title}`, '');
-      if (!s.items.length) out.push('_(boş)_', '');
+      if (!s.items.length) out.push('_(empty)_', '');
       for (const it of s.items) out.push(...itemMd(it));
       if (s.items.length) out.push('');
     }
     if (d.connections.length) {
-      out.push('## Bağlantılar (fikir akışı)', '', ...d.connections.map((c) => `- ${c}`), '');
+      out.push('## Connections (flow of ideas)', '', ...d.connections.map((c) => `- ${c}`), '');
     }
   });
   return (
@@ -325,7 +354,7 @@ function itemMd(it: Item): string[] {
   for (const l of it.lines ?? []) out.push(`  ${l}`.trimEnd() || '  ');
   for (const c of it.checklist ?? []) out.push(`  - [${c.done ? 'x' : ' '}] ${c.text}`);
   if (it.image) out.push(`  ![${it.image.alt}](${it.image.url})`);
-  if (it.comments?.length) out.push('  Yorumlar:', ...it.comments.map((c) => `  - ${c}`));
+  if (it.comments?.length) out.push('  Comments:', ...it.comments.map((c) => `  - ${c}`));
   return out;
 }
 
@@ -338,33 +367,33 @@ const safeUrl = (u: string) => (/^(https?:|data:image\/)/i.test(u) ? u : '#');
 export function boardsToHtml(boards: OutlineBoard[], opts: OutlineOptions): string {
   const ds = docs(boards, opts);
   const root = ds[0];
-  const title = root ? `${root.icon} ${root.name}` : 'Notebase panosu';
+  const title = root ? `${root.icon} ${root.name}` : 'Notebase board';
   const firstImage = ds.flatMap((d) => d.sections.flatMap((s) => s.items)).find((i) => i.image)?.image?.url;
   const body = ds
     .map(
       (d, i) => `<section class="board" id="${esc(d.id)}">
   ${i === 0 ? `<h1>${esc(title)}</h1>` : `<h1 class="sub">${esc(`${d.icon} ${d.name}`)}</h1>`}
-  ${d.path.length ? `<p class="path">Konum: ${esc([...d.path, d.name].join(' / '))}</p>` : ''}
+  ${d.path.length ? `<p class="path">Location: ${esc([...d.path, d.name].join(' / '))}</p>` : ''}
   ${d.sections
     .map(
       (s) => `<div class="section">${s.title ? `<h2>${esc(s.title)}</h2>` : ''}
-    ${s.items.length ? `<ul class="cards">${s.items.map(itemHtml).join('')}</ul>` : '<p class="muted">(boş)</p>'}</div>`,
+    ${s.items.length ? `<ul class="cards">${s.items.map(itemHtml).join('')}</ul>` : '<p class="muted">(empty)</p>'}</div>`,
     )
     .join('\n')}
-  ${d.connections.length ? `<div class="section"><h2>Bağlantılar (fikir akışı)</h2><ul class="links">${d.connections.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
+  ${d.connections.length ? `<div class="section"><h2>Connections (flow of ideas)</h2><ul class="links">${d.connections.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
 </section>`,
     )
     .join('\n');
 
   return `<!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(title)} · Notebase</title>
 <meta name="description" content="${esc(INTRO)}" />
 <meta property="og:title" content="${esc(title)}" />
-<meta property="og:description" content="Notebase panosu" />
+<meta property="og:description" content="Notebase board" />
 ${firstImage ? `<meta property="og:image" content="${esc(firstImage)}" />` : ''}
 ${opts.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${esc(opts.markdownUrl)}" />` : ''}
 <style>
@@ -397,8 +426,8 @@ ${opts.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${esc(opt
 </head>
 <body>
 <main>
-  <div class="top"><span class="brand">NOTEBASE · PAYLAŞILAN PANO</span>${opts.viewUrl ? `<a class="btn" href="${esc(opts.viewUrl)}">Etkileşimli panoyu aç →</a>` : ''}</div>
-  <p class="intro">${esc(INTRO)}${opts.markdownUrl ? ` Düz metin (Markdown): <a href="${esc(opts.markdownUrl)}">${esc(opts.markdownUrl)}</a>` : ''}</p>
+  <div class="top"><span class="brand">NOTEBASE · SHARED BOARD</span>${opts.viewUrl ? `<a class="btn" href="${esc(opts.viewUrl)}">Open interactive board →</a>` : ''}</div>
+  <p class="intro">${esc(INTRO)}${opts.markdownUrl ? ` Plain text (Markdown): <a href="${esc(opts.markdownUrl)}">${esc(opts.markdownUrl)}</a>` : ''}</p>
   ${body}
 </main>
 </body>
@@ -414,6 +443,6 @@ function itemHtml(it: Item): string {
   ${it.lines?.length ? `<p class="text">${esc(it.lines.join('\n'))}</p>` : ''}
   ${it.checklist?.length ? `<ul class="check">${it.checklist.map((c) => `<li class="${c.done ? 'done' : ''}">${c.done ? '☑' : '☐'} ${esc(c.text)}</li>`).join('')}</ul>` : ''}
   ${it.image ? `<img src="${esc(safeUrl(it.image.url))}" alt="${esc(it.image.alt)}" loading="lazy" />` : ''}
-  ${it.comments?.length ? `<div class="meta">Yorumlar</div><ul class="comments">${it.comments.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+  ${it.comments?.length ? `<div class="meta">Comments</div><ul class="comments">${it.comments.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
 </li>`;
 }

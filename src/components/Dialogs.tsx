@@ -8,7 +8,7 @@ import { useStore } from '../store';
 import { signIn, signOut, syncNow, useCloud } from '../sync';
 import { toast, useToasts } from '../ui';
 
-function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="overlay center" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -24,12 +24,12 @@ function Modal({ title, children, onClose }: { title: string; children: ReactNod
   );
 }
 
-const copy = async (text: string, msg = 'Kopyalandı') => {
+const copy = async (text: string, msg = 'Copied') => {
   try {
     await navigator.clipboard.writeText(text);
     toast(msg);
   } catch {
-    prompt('Kopyala:', text);
+    prompt('Copy:', text);
   }
 };
 
@@ -40,7 +40,7 @@ function CopyField({ label, value, hint }: { label: string; value: string; hint?
       <div className="copy-row">
         <input readOnly value={value} onFocus={(e) => e.target.select()} />
         <button className="btn-ghost" onClick={() => copy(value)}>
-          <Copy size={13} /> Kopyala
+          <Copy size={13} /> Copy
         </button>
         <a className="btn-ghost" href={value} target="_blank" rel="noreferrer">
           <ExternalLink size={13} />
@@ -66,7 +66,7 @@ export function AccountDialog() {
     setMsg(null);
     try {
       const r = await signIn(email.trim(), password, create);
-      if (r === 'confirm') setMsg('Hesap oluşturuldu. E-postana gelen onay linkine tıkla, sonra buradan giriş yap.');
+      if (r === 'confirm') setMsg('Account created. Click the confirmation link in your email, then sign in here.');
     } catch (e) {
       setMsg(trError((e as Error).message));
     } finally {
@@ -75,16 +75,16 @@ export function AccountDialog() {
   };
 
   return (
-    <Modal title="Bulut senkronu" onClose={() => setPanel(null)}>
+    <Modal title="Cloud sync" onClose={() => setPanel(null)}>
       {!cloudConfigured ? (
         <div className="stack">
           <p>
-            Bulut henüz bağlanmamış. Bağlandığında panoların, görsellerin ve videoların her cihazda (telefon, bilgisayar) aynı
-            olur ve panolarını link ile paylaşabilirsin.
+            The cloud isn't connected yet. Once it is, your boards, images and videos are the same on every device (phone,
+            computer) and you can share boards with a link.
           </p>
           <p className="muted small">
-            Kurulum bir kez yapılır (yaklaşık 5 dakika): ücretsiz bir Supabase projesi aç, <code>supabase/schema.sql</code>{' '}
-            dosyasını çalıştır, iki anahtarı Vercel'e ekle. Adımlar projenin README dosyasında.
+            One-time setup (about 5 minutes): create a free Supabase project, run <code>supabase/schema.sql</code>, and add two
+            keys to Vercel. The steps are in the project README.
           </p>
         </div>
       ) : cloud.user ? (
@@ -101,21 +101,21 @@ export function AccountDialog() {
           {cloud.error && cloud.status === 'error' && <p className="error small">{cloud.error}</p>}
           <div className="row">
             <button className="btn" onClick={() => syncNow()}>
-              <RefreshCw size={14} /> Şimdi senkronize et
+              <RefreshCw size={14} /> Sync now
             </button>
             <button
               className="btn-ghost"
               onClick={async () => {
                 await signOut();
-                toast('Çıkış yapıldı. Panoların bu cihazda kalmaya devam ediyor.');
+                toast('Signed out. Your boards stay on this device.');
               }}
             >
-              <LogOut size={14} /> Çıkış yap
+              <LogOut size={14} /> Sign out
             </button>
           </div>
           <p className="muted small">
-            Değişiklikler otomatik olarak buluta gider; diğer cihazlar uygulamayı açtığında ya da 30 saniyede bir yeni halini
-            alır. İnternet yokken de çalışmaya devam edebilirsin, bağlantı gelince gönderilir.
+            Changes go to the cloud automatically; other devices pick them up when the app opens and every 30 seconds. You can
+            keep working offline — changes are sent when you're back online.
           </p>
         </div>
       ) : (
@@ -126,12 +126,12 @@ export function AccountDialog() {
             submit(false);
           }}
         >
-          <p className="muted small">Giriş yap; panoların her cihazında aynı olsun.</p>
+          <p className="muted small">Sign in to keep your boards in sync across devices.</p>
           <input
             className="field-input"
             type="email"
             autoComplete="email"
-            placeholder="E-posta"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -140,7 +140,7 @@ export function AccountDialog() {
             className="field-input"
             type="password"
             autoComplete="current-password"
-            placeholder="Şifre (en az 6 karakter)"
+            placeholder="Password (at least 6 characters)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -149,10 +149,10 @@ export function AccountDialog() {
           {msg && <p className="small notice">{msg}</p>}
           <div className="row">
             <button className="btn" disabled={busy} type="submit">
-              Giriş yap
+              Sign in
             </button>
             <button className="btn-ghost" disabled={busy} type="button" onClick={() => submit(true)}>
-              Hesap oluştur
+              Create account
             </button>
           </div>
         </form>
@@ -163,30 +163,28 @@ export function AccountDialog() {
 
 const trError = (m: string) =>
   /invalid login/i.test(m)
-    ? 'E-posta ya da şifre hatalı. Henüz hesabın yoksa aşağıdaki "Hesap oluştur" butonuna bas.'
+    ? 'Wrong email or password. No account yet? Press "Create account".'
     : /already registered/i.test(m)
-      ? 'Bu e-posta ile zaten bir hesap var. Giriş yap.'
+      ? 'There is already an account with this email. Sign in instead.'
       : /not confirmed/i.test(m)
-        ? 'E-posta henüz onaylanmamış. Gelen kutundaki linke tıkla.'
+        ? 'Email not confirmed yet. Click the link in your inbox.'
         : /signups not allowed/i.test(m)
-          ? 'Yeni hesap açma kapalı.'
+          ? 'Creating new accounts is turned off.'
           : m;
 
 export function SyncLabel() {
   const { status, lastSync, uploads } = useCloud();
   const text: Record<string, string> = {
-    off: 'Bulut kapalı',
-    syncing: 'Senkronize ediliyor…',
-    synced: lastSync
-      ? `Senkronize · ${new Date(lastSync).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`
-      : 'Senkronize',
-    offline: 'Çevrimdışı — bağlantı gelince gönderilecek',
-    error: 'Senkron hatası',
+    off: 'Cloud off',
+    syncing: 'Syncing…',
+    synced: lastSync ? `Synced · ${new Date(lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Synced',
+    offline: 'Offline — will sync when back online',
+    error: 'Sync error',
   };
   return (
     <>
       {text[status]}
-      {uploads > 0 && ` · ${uploads} dosya yükleniyor`}
+      {uploads > 0 && ` · uploading ${uploads} file${uploads > 1 ? 's' : ''}`}
     </>
   );
 }
@@ -242,20 +240,20 @@ export function ShareDialog() {
     const md = await boardMarkdown(board.shareId ? `${origin}/?share=${board.shareId}` : undefined);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }));
-    a.download = `${board.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'pano'}.md`;
+    a.download = `${board.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'board'}.md`;
     a.click();
   };
 
   return (
-    <Modal title={`Paylaş · ${board.icon} ${board.name}`} onClose={() => setPanel(null)}>
+    <Modal title={`Share · ${board.icon} ${board.name}`} onClose={() => setPanel(null)}>
       <div className="stack">
         <div className="share-block">
           <div className="share-title">
-            <Bot size={15} /> Yapay zekâya ver
+            <Bot size={15} /> Give it to an AI
           </div>
           <p className="muted small">
-            Panoyu {subCount ? `(${subCount} alt pano dahil) ` : ''}bölümleri, kartları ve aralarındaki oklarla birlikte düzenli
-            metne çevirir. Claude ya da ChatGPT'ye yapıştır, fikrini anlatsın.
+            Turns the board {subCount ? `(and its ${subCount} sub-board${subCount > 1 ? 's' : ''}) ` : ''}into structured text —
+            sections, cards and the arrows between them. Paste it into Claude or ChatGPT and talk through your idea.
           </p>
           <div className="row">
             <button
@@ -263,50 +261,52 @@ export function ShareDialog() {
               onClick={async () =>
                 copy(
                   await boardMarkdown(board.shareId ? `${origin}/?share=${board.shareId}` : undefined),
-                  'Pano metni kopyalandı — yapay zekâya yapıştır',
+                  'Board copied as text — paste it into your AI',
                 )
               }
             >
-              <Copy size={14} /> Metin olarak kopyala
+              <Copy size={14} /> Copy as text
             </button>
             <button className="btn-ghost" onClick={downloadMd}>
-              <Download size={14} /> .md indir
+              <Download size={14} /> Download .md
             </button>
           </div>
         </div>
 
         <div className="share-block">
           <div className="share-title">
-            <Link2 size={15} /> Link ile paylaş
+            <Link2 size={15} /> Share with a link
           </div>
           {!cloudConfigured || !cloud.user ? (
             <>
-              <p className="muted small">Link ile paylaşmak için bulut senkronunu aç; pano buluta gitmeli ki link çalışsın.</p>
+              <p className="muted small">
+                Turn on cloud sync to share with a link — the board has to be in the cloud for the link to work.
+              </p>
               <button className="btn-ghost" onClick={() => setPanel('account')}>
-                <Cloud size={14} /> {cloudConfigured ? 'Giriş yap' : 'Bulutu bağla'}
+                <Cloud size={14} /> {cloudConfigured ? 'Sign in' : 'Connect the cloud'}
               </button>
             </>
           ) : !board.shareId ? (
             <>
               <p className="muted small">
-                Linki olan herkes bu panoyu{subCount ? ' ve alt panolarını' : ''} görebilir ama değiştiremez. İstediğin zaman
-                kapatırsın.
+                Anyone with the link can view this board{subCount ? ' and its sub-boards' : ''} but not change it. You can turn it
+                off any time.
               </p>
               <button className="btn" onClick={enable}>
-                <Link2 size={14} /> Paylaşım linki oluştur
+                <Link2 size={14} /> Create share link
               </button>
             </>
           ) : (
             <>
               <CopyField
-                label="Müşteri linki"
+                label="Client link"
                 value={`${origin}/?share=${board.shareId}`}
-                hint="Pano tuval olarak açılır; videolara zaman damgalı yorum bırakabilirler."
+                hint="Opens the board as a canvas. Clients can leave timestamped video comments and approve versions."
               />
               <CopyField
-                label="Yapay zekâ / okuma linki"
+                label="AI / reading link"
                 value={`${origin}/s/${board.shareId}`}
-                hint="Tüm içerik düz sayfa olarak gelir. Claude, ChatGPT gibi araçlara bu linki ver."
+                hint="Everything as a plain page. Give this link to Claude, ChatGPT and similar tools."
               />
               <label className="check-row">
                 <input
@@ -317,7 +317,7 @@ export function ShareDialog() {
                     setTimeout(() => syncNow(), 300);
                   }}
                 />
-                Görüntüleyenler video yorumu bırakabilsin
+                Viewers can comment on and approve videos
               </label>
               <div className="row">
                 <span className="muted small">
@@ -326,12 +326,12 @@ export function ShareDialog() {
                 <button
                   className="btn-ghost danger"
                   onClick={() => {
-                    if (!confirm('Paylaşım kapatılsın mı? Mevcut linkler çalışmaz hale gelir.')) return;
+                    if (!confirm('Turn off sharing? Existing links will stop working.')) return;
                     renameBoard(board.id, { shareId: null });
                     setTimeout(() => syncNow(), 300);
                   }}
                 >
-                  Paylaşımı kapat
+                  Stop sharing
                 </button>
               </div>
             </>
@@ -369,10 +369,10 @@ export function InstallDialog() {
   const setPanel = useStore((s) => s.setPanel);
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
   return (
-    <Modal title="Uygulama olarak yükle" onClose={() => setPanel(null)}>
+    <Modal title="Install as an app" onClose={() => setPanel(null)}>
       <div className="stack">
         <p className="muted small">
-          Notebase'i ana ekranına / masaüstüne ekle: kendi simgesiyle, tam ekran açılır ve internet yokken de çalışır.
+          Add Notebase to your home screen or desktop: it gets its own icon, opens full screen and works offline.
         </p>
         {deferredPrompt ? (
           <button
@@ -382,32 +382,32 @@ export function InstallDialog() {
               const choice = await deferredPrompt.userChoice;
               deferredPrompt = null;
               if (choice?.outcome === 'accepted') {
-                toast('Yüklendi');
+                toast('Installed');
                 setPanel(null);
               }
             }}
           >
-            <Smartphone size={14} /> Şimdi yükle
+            <Smartphone size={14} /> Install now
           </button>
         ) : ios ? (
           <ol className="steps">
             <li>
-              Safari'de alttaki <b>Paylaş</b> düğmesine dokun (kare ve yukarı ok).
+              In Safari, tap the <b>Share</b> button (square with an arrow).
             </li>
             <li>
-              <b>Ana Ekrana Ekle</b>'yi seç.
+              Choose <b>Add to Home Screen</b>.
             </li>
             <li>
-              <b>Ekle</b>'ye dokun — Notebase ana ekranında.
+              Tap <b>Add</b> — Notebase is on your home screen.
             </li>
           </ol>
         ) : (
           <ol className="steps">
             <li>
-              <b>Chrome / Edge (bilgisayar):</b> adres çubuğunun sağındaki yükle simgesine (⊕) tıkla.
+              <b>Chrome / Edge (computer):</b> click the install icon (⊕) at the right of the address bar.
             </li>
             <li>
-              <b>Android:</b> tarayıcı menüsü (⋮) → <b>Uygulamayı yükle</b> ya da <b>Ana ekrana ekle</b>.
+              <b>Android:</b> browser menu (⋮) → <b>Install app</b> or <b>Add to Home screen</b>.
             </li>
           </ol>
         )}

@@ -1,10 +1,26 @@
-import { Briefcase, ChevronRight, Cloud, CloudOff, Download, Plus, Search, Smartphone, Trash2, Upload } from 'lucide-react';
+import {
+  Briefcase,
+  CalendarDays,
+  ChevronRight,
+  Cloud,
+  CloudOff,
+  Download,
+  Monitor,
+  Moon,
+  Plus,
+  Search,
+  Smartphone,
+  Sun,
+  Trash2,
+  Upload,
+  Zap,
+} from 'lucide-react';
 import { cloudConfigured } from '../cloud';
 import { useCloud } from '../sync';
 import { SyncLabel, useCanInstall } from './Dialogs';
 import { useState } from 'react';
 import { exportWorkspace, importWorkspace } from '../db';
-import { isPhone, useStore } from '../store';
+import { isPhone, useStore, type Panel, type Theme } from '../store';
 import { TEMPLATES, type TemplateId } from '../templates';
 import type { BoardMeta } from '../types';
 
@@ -99,11 +115,11 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
         {!readOnly && (
           <button
             className="tree-del"
-            title="Panoyu sil"
+            title="Delete board"
             onClick={(e) => {
               e.stopPropagation();
-              const sub = children.length ? ' ve tüm alt panoları' : '';
-              if (confirm(`"${board.name}"${sub} silinsin mi? Bu geri alınamaz.`)) removeBoard(board.id);
+              const sub = children.length ? ' and all its sub-boards' : '';
+              if (confirm(`Delete "${board.name}"${sub}? This can't be undone.`)) removeBoard(board.id);
             }}
           >
             <Trash2 size={12} />
@@ -115,14 +131,31 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
   );
 }
 
+const THEME_NEXT: Record<Theme, Theme> = { system: 'dark', dark: 'light', light: 'system' };
+
+function ThemeButton() {
+  const { theme, setTheme } = useStore();
+  const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  return (
+    <button className="side-btn theme-btn" title={`Theme: ${theme}`} onClick={() => setTheme(THEME_NEXT[theme])}>
+      <Icon size={14} />
+    </button>
+  );
+}
+
 export function Sidebar() {
   const { boards, createBoard, openBoard, setPanel, panel, readOnly } = useStore();
   const [menu, setMenu] = useState(false);
+  // On phones the sidebar covers the screen, so close it when opening a view from it.
+  const go = (p: Panel) => {
+    setPanel(p);
+    if (isPhone() && useStore.getState().sidebar) useStore.getState().toggleSidebar();
+  };
   const user = useCloud((c) => c.user);
   const canInstall = useCanInstall();
   const roots = boards.filter((b) => !b.parentId);
 
-  const newBoard = async (template?: TemplateId, name = 'Yeni pano', icon = '📁') => {
+  const newBoard = async (template?: TemplateId, name = 'New board', icon = '📁') => {
     setMenu(false);
     const id = await createBoard({ name, parentId: null, icon, template });
     await openBoard(id);
@@ -148,7 +181,7 @@ export function Sidebar() {
         await importWorkspace(file);
         location.reload();
       } catch (err) {
-        alert(`İçe aktarılamadı: ${(err as Error).message}`);
+        alert(`Couldn't restore: ${(err as Error).message}`);
       }
     };
     input.click();
@@ -170,22 +203,28 @@ export function Sidebar() {
 
       {!readOnly && (
         <>
-          <button className="side-btn" onClick={() => setPanel(panel === 'search' ? null : 'search')}>
-            <Search size={15} /> Ara <kbd>⌘K</kbd>
+          <button className="side-btn" onClick={() => go('capture')}>
+            <Zap size={15} /> Quick capture <kbd>Q</kbd>
+          </button>
+          <button className="side-btn" onClick={() => go(panel === 'search' ? null : 'search')}>
+            <Search size={15} /> Search <kbd>⌘K</kbd>
           </button>
           <button
-            className={`side-btn ${panel === 'jobs' ? 'on' : ''}`}
-            onClick={() => setPanel(panel === 'jobs' ? null : 'jobs')}
+            className={`side-btn ${panel === 'calendar' ? 'on' : ''}`}
+            onClick={() => go(panel === 'calendar' ? null : 'calendar')}
           >
-            <Briefcase size={15} /> İşlerim <kbd>⌘J</kbd>
+            <CalendarDays size={15} /> Calendar <kbd>⌘⇧C</kbd>
+          </button>
+          <button className={`side-btn ${panel === 'jobs' ? 'on' : ''}`} onClick={() => go(panel === 'jobs' ? null : 'jobs')}>
+            <Briefcase size={15} /> Jobs <kbd>⌘J</kbd>
           </button>
         </>
       )}
 
       <div className="side-section">
-        <span>Panolar</span>
+        <span>Boards</span>
         {!readOnly && (
-          <button className="icon-btn" title="Yeni pano" onClick={() => setMenu(!menu)}>
+          <button className="icon-btn" title="New board" onClick={() => setMenu(!menu)}>
             <Plus size={14} />
           </button>
         )}
@@ -195,8 +234,8 @@ export function Sidebar() {
           <button onClick={() => newBoard()}>
             <span className="t-icon">📄</span>
             <span>
-              <b>Boş pano</b>
-              <small>Sıfırdan başla</small>
+              <b>Blank board</b>
+              <small>Start from scratch</small>
             </span>
           </button>
           {TEMPLATES.map((t) => (
@@ -218,28 +257,29 @@ export function Sidebar() {
 
       {readOnly ? (
         <a className="side-btn" href="/" target="_blank" rel="noreferrer">
-          ✨ Kendi panonu oluştur
+          ✨ Make your own board
         </a>
       ) : (
         <>
           <button className="side-btn cloud-btn" onClick={() => setPanel('account')}>
             {user ? <Cloud size={15} /> : <CloudOff size={15} />}
             <span className="cloud-text">
-              {user ? user.email : 'Bulut senkronu'}
-              <small>{user ? <SyncLabel /> : cloudConfigured ? 'Giriş yap — her cihazda aynı' : 'Kapalı'}</small>
+              {user ? user.email : 'Cloud sync'}
+              <small>{user ? <SyncLabel /> : cloudConfigured ? 'Sign in — same boards everywhere' : 'Off'}</small>
             </span>
           </button>
           {canInstall && (
             <button className="side-btn" onClick={() => setPanel('install')}>
-              <Smartphone size={15} /> Uygulama olarak yükle
+              <Smartphone size={15} /> Install as app
             </button>
           )}
           <div className="side-footer">
-            <button className="side-btn" onClick={doExport} title="Tüm panoları ve medyayı tek dosyaya yedekle">
-              <Download size={14} /> Yedekle
+            <ThemeButton />
+            <button className="side-btn" onClick={doExport} title="Back up all boards and media to one file">
+              <Download size={14} /> Back up
             </button>
-            <button className="side-btn" onClick={doImport} title="Yedek dosyasını geri yükle">
-              <Upload size={14} /> Geri yükle
+            <button className="side-btn" onClick={doImport} title="Restore from a backup file">
+              <Upload size={14} /> Restore
             </button>
           </div>
         </>

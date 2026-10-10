@@ -20,7 +20,8 @@ interface Snapshot {
   edges: CardEdge[];
 }
 
-export type Panel = 'jobs' | 'search' | 'share' | 'account' | 'install' | null;
+export type Panel = 'jobs' | 'search' | 'share' | 'account' | 'install' | 'calendar' | 'capture' | 'details' | 'export' | null;
+export type Theme = 'system' | 'dark' | 'light';
 export type Background = 'dots' | 'grid' | 'none';
 
 export interface MenuState {
@@ -58,6 +59,11 @@ interface State {
   shared: SharedView | null;
   /** Comments clients left through share links, for the open board, by card id. */
   clientComments: Record<string, RemoteComment[]>;
+  /** Card whose details (schedule, tags) are being edited. */
+  detailsId: string | null;
+  /** Only cards with this tag are highlighted. */
+  tagFilter: string | null;
+  theme: Theme;
 
   init: () => Promise<void>;
   initShared: (bundle: SharedBundle, shareId: string) => Promise<void>;
@@ -90,6 +96,14 @@ interface State {
   setBackground: (b: Background) => void;
   setClientComments: (c: RemoteComment[]) => void;
   toggleSidebar: () => void;
+  openDetails: (id: string) => void;
+  setTagFilter: (t: string | null) => void;
+  setTheme: (t: Theme) => void;
+  /** Update a card that may live on a board that isn't open. */
+  patchCard: (boardId: string, cardId: string, patch: Partial<CardData>) => Promise<void>;
+  /** Add a card to any board (the open one or one stored on this device). */
+  appendCard: (boardId: string, card: CardNode) => Promise<void>;
+  ensureInbox: () => Promise<string>;
   focusCard: (boardId: string, cardId: string | null) => Promise<void>;
 }
 
@@ -136,6 +150,9 @@ export const useStore = create<State>((set, get) => {
     readOnly: false,
     shared: null,
     clientComments: {},
+    detailsId: null,
+    tagFilter: null,
+    theme: (localStorage.getItem('notebase:theme') as Theme) || 'system',
 
     init: () =>
       (initPromise ??= (async () => {
@@ -143,9 +160,9 @@ export const useStore = create<State>((set, get) => {
         set({ boards });
         if (!boards.length) {
           // First run: a home board with a sample video project inside it.
-          const home = await get().createBoard({ name: 'Ana Pano', parentId: null, icon: '🏠', template: 'welcome' });
+          const home = await get().createBoard({ name: 'Home', parentId: null, icon: '🏠', template: 'welcome' });
           const sample = await get().createBoard({
-            name: 'Örnek: YouTube videosu',
+            name: 'Sample: YouTube video',
             parentId: home,
             icon: '🎬',
             template: 'video',
@@ -350,6 +367,44 @@ export const useStore = create<State>((set, get) => {
       if (!isPhone()) localStorage.setItem('notebase:sidebar', get().sidebar ? '0' : '1');
       set({ sidebar: !get().sidebar });
     },
+    openDetails: (detailsId) => set({ detailsId, panel: 'details', menu: null }),
+    setTagFilter: (tagFilter) => set({ tagFilter }),
+    setTheme: (theme) => {
+      localStorage.setItem('notebase:theme', theme);
+      set({ theme });
+    },
+
+    patchCard: async (boardId, cardId, patch) => {
+      if (!editable()) return;
+      if (boardId === get().currentId) return get().updateData(cardId, patch);
+      const content = await db.loadBoard(boardId);
+      content.nodes = content.nodes.map((n) => (n.id === cardId ? { ...n, data: { ...n.data, ...patch } } : n));
+      await db.saveBoard(boardId, content);
+      touchBoard(boardId);
+    },
+
+    appendCard: async (boardId, card) => {
+      if (boardId === get().currentId) {
+        get().checkpoint();
+        set({ nodes: [...get().nodes, card] });
+        return;
+      }
+      const content = await db.loadBoard(boardId);
+      content.nodes = [...content.nodes, card];
+      await db.saveBoard(boardId, content);
+      touchBoard(boardId);
+    },
+
+    ensureInbox: async () => {
+      const existing = get().boards.find((b) => b.inbox);
+      if (existing) return existing.id;
+      const id = await get().createBoard({ name: 'Inbox', parentId: null, icon: '📥' });
+      const boards = get().boards.map((b) => (b.id === id ? { ...b, inbox: true } : b));
+      set({ boards });
+      await db.saveIndex(boards);
+      return id;
+    },
+
     focusCard: async (boardId, cardId) => {
       if (boardId !== get().currentId) await get().openBoard(boardId);
       set({ focusId: cardId, panel: null });
@@ -358,6 +413,13 @@ export const useStore = create<State>((set, get) => {
 });
 
 // ---------- Persistence ----------
+
+/** Mark a board edited (so it syncs) after changing it directly in IndexedDB. */
+function touchBoard(id: string) {
+  const boards = useStore.getState().boards.map((b) => (b.id === id ? { ...b, updatedAt: Date.now() } : b));
+  useStore.setState({ boards });
+  db.saveIndex(boards);
+}
 
 const cleanNodes = (nodes: CardNode[]) => nodes.map(({ selected, dragging, resizing, ...n }) => n as CardNode);
 const cleanEdges = (edges: CardEdge[]) => edges.map(({ selected, ...e }) => e);

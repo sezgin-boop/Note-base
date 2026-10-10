@@ -1,4 +1,6 @@
-import { Bot, ChevronRight, Eye, PanelLeft, Search, Share2, X } from 'lucide-react';
+import { Bot, ChevronRight, Eye, Hash, PanelLeft, Search, Share2, X } from 'lucide-react';
+import { boardTags } from '../tags';
+import { ExportMenu } from './Export';
 import { cloudConfigured } from '../cloud';
 import { useCloud } from '../sync';
 import { toast } from '../ui';
@@ -19,7 +21,7 @@ export function Topbar() {
   const [picker, setPicker] = useState(false);
   return (
     <header className="topbar">
-      <button className="icon-btn" title="Kenar çubuğu" onClick={toggleSidebar}>
+      <button className="icon-btn" title="Sidebar" onClick={toggleSidebar}>
         <PanelLeft size={16} />
       </button>
       <nav className="crumbs">
@@ -57,26 +59,28 @@ export function Topbar() {
       {readOnly ? (
         <>
           <span className="badge">
-            <Eye size={12} /> Salt okunur
+            <Eye size={12} /> View only
           </span>
           <button
             className="top-btn"
-            title="Panoyu yapay zekâ için metin olarak kopyala"
+            title="Copy the board as text for an AI"
             onClick={async () => {
               await navigator.clipboard.writeText(await boardMarkdown(location.href));
-              toast('Pano metni kopyalandı');
+              toast('Board copied as text');
             }}
           >
-            <Bot size={14} /> <span className="hide-sm">Metin olarak kopyala</span>
+            <Bot size={14} /> <span className="hide-sm">Copy as text</span>
           </button>
         </>
       ) : (
         <>
           <span className="muted small status-text">
-            {nodes.length} kart · {cloudConfigured && user ? <SyncLabel /> : 'bu cihazda kayıtlı'}
+            {nodes.length} cards · {cloudConfigured && user ? <SyncLabel /> : 'saved on this device'}
           </span>
+          <TagFilter />
+          <ExportMenu />
           <button className="top-btn" onClick={() => setPanel('share')}>
-            <Share2 size={14} /> <span className="hide-sm">Paylaş</span>
+            <Share2 size={14} /> <span className="hide-sm">Share</span>
           </button>
         </>
       )}
@@ -84,8 +88,54 @@ export function Topbar() {
   );
 }
 
+/** Highlight only the cards with one tag (explicit tags or #hashtags in their text). */
+function TagFilter() {
+  const { nodes, tagFilter, setTagFilter } = useStore();
+  const [open, setOpen] = useState(false);
+  const tags = useMemo(() => boardTags(nodes), [nodes]);
+  if (!tags.length && !tagFilter) return null;
+  return (
+    <div className="export">
+      <button className={`top-btn ${tagFilter ? 'active' : ''}`} onClick={() => setOpen(!open)} title="Filter by tag">
+        <Hash size={14} /> <span className="hide-sm">{tagFilter ?? 'Tags'}</span>
+        {tagFilter && (
+          <X
+            size={13}
+            onClick={(e) => {
+              e.stopPropagation();
+              setTagFilter(null);
+            }}
+          />
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="backdrop-clear" onClick={() => setOpen(false)} />
+          <div className="context-menu export-menu tag-menu">
+            <div className="menu-head">Show only cards tagged</div>
+            <div className="tag-list">
+              {tags.map(({ tag, count }) => (
+                <button
+                  key={tag}
+                  className={`tag-chip big ${tagFilter === tag ? 'on' : ''}`}
+                  onClick={() => {
+                    setTagFilter(tagFilter === tag ? null : tag);
+                    setOpen(false);
+                  }}
+                >
+                  #{tag} <span className="muted">{count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Load every board (the open one from live state) for cross-board views. */
-function useAllCards() {
+export function useAllCards() {
   const { boards, currentId, nodes } = useStore();
   const [stored, setStored] = useState<Record<string, CardNode[]>>({});
   useEffect(() => {
@@ -100,7 +150,16 @@ function useAllCards() {
 }
 
 const cardText = (n: CardNode) =>
-  [n.data.title, n.data.text, n.data.caption, n.data.client, n.data.url, n.data.audio, ...(n.data.items ?? []).map((i) => i.text)]
+  [
+    n.data.title,
+    n.data.text,
+    n.data.caption,
+    n.data.client,
+    n.data.url,
+    n.data.audio,
+    ...(n.data.items ?? []).map((i) => i.text),
+    ...(n.data.tags ?? []).map((t) => `#${t}`),
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -111,14 +170,14 @@ export function SearchPalette() {
   const [sel, setSel] = useState(0);
 
   const results = useMemo(() => {
-    const term = q.trim().toLocaleLowerCase('tr');
+    const term = q.trim().toLocaleLowerCase();
     const boardHits = boards
-      .filter((b) => !term || b.name.toLocaleLowerCase('tr').includes(term))
+      .filter((b) => !term || b.name.toLocaleLowerCase().includes(term))
       .map((b) => ({ key: b.id, board: b, node: null as CardNode | null, text: b.name }));
     if (!term) return boardHits.slice(0, 12);
     const cardHits = all
       .map(({ board, node }) => ({ key: node.id, board, node, text: cardText(node) }))
-      .filter((r) => r.text.toLocaleLowerCase('tr').includes(term));
+      .filter((r) => r.text.toLocaleLowerCase().includes(term));
     return [...boardHits, ...cardHits].slice(0, 40);
   }, [q, all, boards]);
 
@@ -131,7 +190,7 @@ export function SearchPalette() {
           <Search size={16} />
           <input
             autoFocus
-            placeholder="Panolarda ve kartlarda ara…"
+            placeholder="Search boards, cards and #tags…"
             value={q}
             onChange={(e) => (setQ(e.target.value), setSel(0))}
             onKeyDown={(e) => {
@@ -146,11 +205,11 @@ export function SearchPalette() {
           {results.map((r, i) => (
             <button key={r.key} className={i === sel ? 'sel' : ''} onMouseEnter={() => setSel(i)} onClick={() => go(r)}>
               <span className="r-kind">{r.node ? kindLabel(r.node) : r.board.icon}</span>
-              <span className="r-text">{r.text || '(boş kart)'}</span>
-              <span className="r-board">{r.node ? `${r.board.icon} ${r.board.name}` : 'Pano'}</span>
+              <span className="r-text">{r.text || '(empty card)'}</span>
+              <span className="r-board">{r.node ? `${r.board.icon} ${r.board.name}` : 'Board'}</span>
             </button>
           ))}
-          {!results.length && <div className="muted empty">Sonuç yok</div>}
+          {!results.length && <div className="muted empty">No results</div>}
         </div>
       </div>
     </div>
@@ -158,22 +217,26 @@ export function SearchPalette() {
 }
 
 const KIND: Record<string, string> = {
-  note: 'Not',
-  heading: 'Başlık',
-  todo: 'Liste',
-  image: 'Görsel',
+  note: 'Note',
+  heading: 'Heading',
+  todo: 'List',
+  image: 'Image',
   video: 'Video',
   link: 'Link',
-  board: 'Pano',
-  frame: 'Bölüm',
-  scene: 'Sahne',
-  project: 'İş',
-  color: 'Renk',
+  board: 'Board',
+  frame: 'Section',
+  scene: 'Scene',
+  project: 'Job',
+  color: 'Color',
 };
 const kindLabel = (n: CardNode) => KIND[n.type ?? 'note'];
 
 const parseFee = (fee?: string) => Number((fee ?? '').replace(/[^\d]/g, '')) || 0;
-const money = (n: number) => `₺${n.toLocaleString('tr-TR')}`;
+/** Total with the currency symbol the fees are written in (₺, $, €, £), if any. */
+const money = (n: number, fees: (string | undefined)[]) => {
+  const symbol = fees.join(' ').match(/[₺$€£]/)?.[0] ?? '';
+  return `${symbol}${n.toLocaleString()}`;
+};
 
 export function JobsPanel() {
   const { setPanel, focusCard } = useStore();
@@ -194,7 +257,7 @@ export function JobsPanel() {
   return (
     <aside className="jobs">
       <div className="jobs-head">
-        <b>İşlerim</b>
+        <b>Jobs</b>
         <button className="icon-btn" onClick={() => setPanel(null)}>
           <X size={15} />
         </button>
@@ -202,27 +265,37 @@ export function JobsPanel() {
       <div className="stats">
         <div>
           <b>{active}</b>
-          <span>Aktif</span>
+          <span>Active</span>
         </div>
         <div className={late ? 'bad' : ''}>
           <b>{late}</b>
-          <span>Gecikmiş</span>
+          <span>Overdue</span>
         </div>
         <div>
-          <b>{money(pending)}</b>
-          <span>Ödeme bekleyen</span>
+          <b>
+            {money(
+              pending,
+              projects.map((p) => p.fee),
+            )}
+          </b>
+          <span>Awaiting payment</span>
         </div>
         <div>
-          <b>{money(earned)}</b>
-          <span>Tahsil edilen</span>
+          <b>
+            {money(
+              earned,
+              projects.map((p) => p.fee),
+            )}
+          </b>
+          <span>Paid</span>
         </div>
       </div>
       <div className="seg">
         <button className={filter === 'active' ? 'on' : ''} onClick={() => setFilter('active')}>
-          Aktif
+          Active
         </button>
         <button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>
-          Tümü
+          All
         </button>
       </div>
       <div className="job-list">
@@ -231,7 +304,7 @@ export function JobsPanel() {
         ))}
         {!jobs.length && (
           <div className="muted empty">
-            Henüz iş yok. Araç çubuğundaki <b>İş</b> kartıyla müşteri işlerini ekle — burada teslim tarihine göre sıralanır.
+            No jobs yet. Add client work with the <b>Job</b> card in the toolbar — it shows up here, sorted by due date.
           </div>
         )}
       </div>
@@ -244,7 +317,7 @@ function JobRow({ board, node, onClick }: { board: BoardMeta; node: CardNode; on
   return (
     <button className="job" onClick={onClick} style={{ '--c': STATUS_COLORS[status] } as React.CSSProperties}>
       <div className="job-top">
-        <b>{node.data.title || 'İsimsiz iş'}</b>
+        <b>{node.data.title || 'Untitled job'}</b>
         <DeadlineBadge deadline={node.data.deadline} status={status} />
       </div>
       <div className="job-sub">
@@ -255,7 +328,7 @@ function JobRow({ board, node, onClick }: { board: BoardMeta; node: CardNode; on
       <div className="muted small">
         {board.icon} {board.name}
         {node.data.deadline &&
-          ` · ${new Date(node.data.deadline).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`}
+          ` · ${new Date(node.data.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}`}
       </div>
     </button>
   );

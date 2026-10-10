@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
     "@xyflow/react": "^12.12.0",
+    "html-to-image": "^1.11.11",
     "idb-keyval": "^6.3.0",
     "lucide-react": "^1.55.0",
     "nanoid": "^6.0.2",

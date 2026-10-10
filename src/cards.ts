@@ -18,16 +18,16 @@ export const SIZES: Partial<Record<CardType, { width: number; height?: number }>
 
 const DEFAULTS: Record<CardType, () => CardData> = {
   note: () => ({ text: '' }),
-  heading: () => ({ text: 'Başlık' }),
-  todo: () => ({ title: 'Yapılacaklar', items: [{ id: nanoid(6), text: '', done: false }] }),
+  heading: () => ({ text: 'Heading' }),
+  todo: () => ({ title: 'To do', items: [{ id: nanoid(6), text: '', done: false }] }),
   image: () => ({}),
   video: () => ({}),
   link: () => ({ url: '' }),
   board: () => ({}),
-  frame: () => ({ title: 'Bölüm' }),
-  scene: () => ({ number: 1, shot: 'Orta', duration: '3s', text: '', audio: '' }),
-  project: () => ({ title: 'Yeni iş', client: '', deadline: '', fee: '', status: 'brief', text: '' }),
-  color: () => ({ hex: '#a78bfa', title: 'Renk' }),
+  frame: () => ({ title: 'Section' }),
+  scene: () => ({ number: 1, shot: 'Medium', duration: '3s', text: '', audio: '' }),
+  project: () => ({ title: 'New job', client: '', deadline: '', fee: '', status: 'brief', text: '' }),
+  color: () => ({ hex: '#a78bfa', title: 'Color' }),
 };
 
 /** Cards whose height follows their content; only their width is user-resizable. */

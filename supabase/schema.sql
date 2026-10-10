@@ -13,6 +13,8 @@ create table if not exists public.boards (
   share_id text unique,
   share_comments boolean not null default true
 );
+-- Columns added after the first release (safe to re-run).
+alter table public.boards add column if not exists inbox boolean not null default false;
 create index if not exists boards_user_idx on public.boards (user_id);
 create index if not exists boards_parent_idx on public.boards (parent_id);
 
@@ -23,17 +25,21 @@ create policy "boards: owner" on public.boards
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
--- Comments left by clients on shared boards (owner comments live in the board content).
+-- Comments and approvals left by clients on shared boards (owner comments live in the board content).
 create table if not exists public.comments (
   id uuid primary key default gen_random_uuid(),
   board_id text not null references public.boards (id) on delete cascade,
   node_id text not null,
   t real,
-  author text not null default 'Misafir',
+  author text not null default 'Guest',
   body text not null,
   created_at timestamptz not null default now(),
   done boolean not null default false
 );
+alter table public.comments add column if not exists version text;
+-- 'comment' or 'approval' (a client approving a video version).
+alter table public.comments add column if not exists kind text not null default 'comment';
+alter table public.comments alter column author set default 'Guest';
 create index if not exists comments_board_idx on public.comments (board_id);
 
 alter table public.comments enable row level security;
@@ -72,7 +78,8 @@ language sql stable security definer set search_path = public as $$
     'comments', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', c.id, 'boardId', c.board_id, 'nodeId', c.node_id, 't', c.t,
-        'author', c.author, 'body', c.body, 'createdAt', c.created_at, 'done', c.done)
+        'author', c.author, 'body', c.body, 'createdAt', c.created_at, 'done', c.done,
+        'version', c.version, 'kind', c.kind)
         order by c.created_at)
       from public.comments c where c.board_id in (select id from public.shared_board_ids(p_share))
     ), '[]'::jsonb)
@@ -82,9 +89,11 @@ language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function public.get_shared(text) to anon, authenticated;
 
--- Clients add comments through this function only, and only when the owner allows it.
+-- Clients add comments (and approvals) through this function only, and only when the owner allows it.
+drop function if exists public.add_shared_comment(text, text, text, real, text, text);
 create or replace function public.add_shared_comment(
-  p_share text, p_board text, p_node text, p_t real, p_author text, p_body text)
+  p_share text, p_board text, p_node text, p_t real, p_author text, p_body text,
+  p_version text default null, p_kind text default 'comment')
 returns uuid
 language plpgsql security definer set search_path = public as $$
 declare
@@ -96,16 +105,20 @@ begin
   if p_board not in (select id from public.shared_board_ids(p_share)) then
     raise exception 'board is not part of this share';
   end if;
+  if p_kind not in ('comment', 'approval') then
+    raise exception 'unknown kind';
+  end if;
   if coalesce(length(trim(p_body)), 0) = 0 or length(p_body) > 2000 then
     raise exception 'comment must be 1-2000 characters';
   end if;
-  insert into public.comments (board_id, node_id, t, author, body)
-  values (p_board, left(p_node, 64), p_t, left(coalesce(nullif(trim(p_author), ''), 'Misafir'), 60), p_body)
+  insert into public.comments (board_id, node_id, t, author, body, version, kind)
+  values (p_board, left(p_node, 64), p_t, left(coalesce(nullif(trim(p_author), ''), 'Guest'), 60), p_body,
+          left(p_version, 32), p_kind)
   returning id into new_id;
   return new_id;
 end;
 $$;
-grant execute on function public.add_shared_comment(text, text, text, real, text, text) to anon, authenticated;
+grant execute on function public.add_shared_comment(text, text, text, real, text, text, text, text) to anon, authenticated;
 
 -- Media (images / videos). Public bucket with unguessable file names, so share links
 -- and AI tools can load images directly.

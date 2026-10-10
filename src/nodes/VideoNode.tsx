@@ -1,15 +1,15 @@
 import type { NodeProps } from '@xyflow/react';
-import { Check, Clock, Maximize2, MessageSquare, Trash2, Video } from 'lucide-react';
+import { BadgeCheck, Camera, Check, Clock, Maximize2, MessageSquare, Plus, Trash2, Video } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 import { addSharedComment, type RemoteComment } from '../cloud';
-import { embedUrl, useMediaUrl } from '../db';
+import { embedUrl, saveMedia, useMediaUrl } from '../db';
 import { fmtTime } from '../share/outline';
 import { useStore } from '../store';
 import { updateClientComment } from '../sync';
-import type { CardNode, VideoComment } from '../types';
+import type { CardData, CardNode, VideoComment, VideoVersion } from '../types';
 import { toast } from '../ui';
-import { Caption, EmptyMedia } from './MediaNodes';
+import { Caption, EmptyMedia, pickFile } from './MediaNodes';
 import { Shell } from './Shell';
 
 type Kind = 'file' | 'youtube' | 'vimeo';
@@ -88,19 +88,75 @@ interface Row {
   remote: boolean;
 }
 
-export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
+/** Versions of a video card. Cards made before versions existed have one implicit "V1". */
+export function videoVersions(d: CardData): VideoVersion[] {
+  if (d.versions?.length) return d.versions;
+  return [{ id: 'v1', label: 'V1', mediaId: d.mediaId, url: d.url, aspect: d.aspect, at: 0 }];
+}
+
+/** Ask for a new file or link and make it the next version of the video. */
+async function addVersion(id: string, d: CardData) {
+  const versions = videoVersions(d);
+  const file = await pickFile('video/*');
+  let media: Partial<VideoVersion> | null = null;
+  if (file) media = { mediaId: await saveMedia(file) };
+  else {
+    const url = prompt('No file chosen. Paste a link for the new version instead (YouTube, Vimeo or .mp4):');
+    if (url?.trim()) media = { url: url.trim() };
+  }
+  if (!media) return;
+  const n = versions.length + 1;
+  const v: VideoVersion = { id: `v${n}-${nanoid(4)}`, label: `V${n}`, at: Date.now(), ...media };
+  useStore.getState().updateData(id, {
+    versions: [...versions, v],
+    versionId: v.id,
+    mediaId: v.mediaId,
+    url: v.url,
+    aspect: undefined,
+  });
+  toast(`${v.label} added — new comments go to this version`);
+}
+
+export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY, width }: NodeProps<CardNode>) {
   const src = useMediaUrl(data.mediaId, data.url);
   const { setLightbox, updateData, readOnly, shared, currentId } = useStore();
   const clientComments = useStore((s) => s.clientComments[id]);
   const embed = data.url ? embedUrl(data.url) : null;
   const kind: Kind | null = embed ? (embed.includes('vimeo') ? 'vimeo' : 'youtube') : src ? 'file' : null;
   const player = usePlayer(kind);
-  const own = data.comments ?? [];
 
+  const versions = videoVersions(data);
+  const current = versions.find((v) => v.id === data.versionId) ?? versions.at(-1)!;
+  // In a shared view the viewer can flip between versions without changing the board.
+  const [viewVersion, setViewVersion] = useState<string | null>(null);
+  const shown = readOnly ? (versions.find((v) => v.id === viewVersion) ?? current) : current;
+  const showVersion = (v: VideoVersion) => {
+    if (readOnly) return setViewVersion(v.id);
+    updateData(id, { versionId: v.id, mediaId: v.mediaId, url: v.url, aspect: v.aspect });
+  };
+  const viewSrc = useMediaUrl(shown.mediaId, shown.url);
+  const playSrc = readOnly ? viewSrc : src;
+  const playEmbed = readOnly ? (shown.url ? embedUrl(shown.url) : null) : embed;
+
+  const inVersion = (v?: string | null) => (v ?? 'v1') === shown.id;
+  const own = data.comments ?? [];
   const rows: Row[] = [
-    ...own.map((c) => ({ id: c.id, t: c.t, text: c.text, author: c.author || 'Ben', done: !!c.done, remote: false })),
-    ...(clientComments ?? []).map((c) => ({ id: c.id, t: c.t, text: c.body, author: c.author, done: c.done, remote: true })),
+    ...own
+      .filter((c) => inVersion(c.v))
+      .map((c) => ({ id: c.id, t: c.t, text: c.text, author: c.author || 'Me', done: !!c.done, remote: false })),
+    ...(clientComments ?? [])
+      .filter((c) => c.kind !== 'approval' && inVersion(c.version))
+      .map((c) => ({ id: c.id, t: c.t, text: c.body, author: c.author, done: c.done, remote: true })),
   ].sort((a, b) => (a.t ?? -1) - (b.t ?? -1));
+  const resolved = rows.filter((r) => r.done).length;
+
+  const approvals = [
+    ...(data.approvals ?? []).map((a) => ({ version: a.version, by: a.by })),
+    ...(readOnly
+      ? (clientComments ?? []).filter((c) => c.kind === 'approval').map((c) => ({ version: c.version ?? 'v1', by: c.author }))
+      : []),
+  ];
+  const approved = approvals.find((a) => a.version === shown.id);
 
   const canComment = !readOnly || !!shared?.allowComments;
   const [open, setOpen] = useState(rows.length > 0);
@@ -109,36 +165,56 @@ export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
   const [name, setName] = useState(() => localStorage.getItem('notebase:guestName') ?? '');
   const has = data.mediaId || data.url;
 
+  const sendShared = async (body: string, kind: 'comment' | 'approval', t: number | null) => {
+    if (!shared) return false;
+    const author = name.trim() || prompt('Your name (shown with your feedback):')?.trim() || 'Guest';
+    localStorage.setItem('notebase:guestName', author);
+    setName(author);
+    try {
+      const newId = await addSharedComment(shared.shareId, {
+        boardId: currentId,
+        nodeId: id,
+        t,
+        author,
+        body,
+        version: shown.id,
+        kind,
+      });
+      const c: RemoteComment = {
+        id: newId,
+        boardId: currentId,
+        nodeId: id,
+        t,
+        author,
+        body,
+        createdAt: new Date().toISOString(),
+        done: false,
+        version: shown.id,
+        kind,
+      };
+      useStore.setState((s) => ({ clientComments: { ...s.clientComments, [id]: [...(s.clientComments[id] ?? []), c] } }));
+      return true;
+    } catch (e) {
+      toast(`Couldn't send: ${(e as Error).message}`);
+      return false;
+    }
+  };
+
   const submit = async () => {
     const text = draft.trim();
     if (!text) return;
     if (!readOnly) {
-      const c: VideoComment = { id: nanoid(8), t: stamp, text, at: Date.now() };
+      const c: VideoComment = { id: nanoid(8), t: stamp, text, at: Date.now(), v: current.id };
       updateData(id, { comments: [...own, c] });
-    } else if (shared) {
-      const author = name.trim() || 'Misafir';
-      localStorage.setItem('notebase:guestName', author);
-      try {
-        const newId = await addSharedComment(shared.shareId, { boardId: currentId, nodeId: id, t: stamp, author, body: text });
-        const c: RemoteComment = {
-          id: newId,
-          boardId: currentId,
-          nodeId: id,
-          t: stamp,
-          author,
-          body: text,
-          createdAt: new Date().toISOString(),
-          done: false,
-        };
-        useStore.setState((s) => ({ clientComments: { ...s.clientComments, [id]: [...(s.clientComments[id] ?? []), c] } }));
-        toast('Yorumun gönderildi');
-      } catch (e) {
-        toast(`Yorum gönderilemedi: ${(e as Error).message}`);
-        return;
-      }
-    }
+    } else if (!(await sendShared(text, 'comment', stamp))) return;
+    else toast('Comment sent');
     setDraft('');
     setStamp(null);
+  };
+
+  const approve = async () => {
+    if (!confirm(`Approve ${shown.label} as final?`)) return;
+    if (await sendShared(`Approved ${shown.label}`, 'approval', null)) toast(`${shown.label} approved — thank you!`);
   };
 
   const toggleDone = (r: Row) => {
@@ -148,6 +224,27 @@ export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
   const remove = (r: Row) => {
     if (r.remote) return updateClientComment(r.id, null);
     updateData(id, { comments: own.filter((c) => c.id !== r.id) });
+  };
+
+  /** Save the paused frame as an image card next to the video. */
+  const grabFrame = async () => {
+    const v = player.videoRef.current;
+    if (!v || !v.videoWidth) return toast('Play or pause the video at the frame you want first');
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    try {
+      canvas.getContext('2d')!.drawImage(v, 0, 0);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.92));
+      if (!blob) throw new Error('empty frame');
+      const mediaId = await saveMedia(blob);
+      const s = useStore.getState();
+      const at = { x: positionAbsoluteX + (width ?? 360) + 40, y: positionAbsoluteY };
+      s.addCard('image', at, { mediaId, caption: `${data.caption || 'Frame'} @ ${fmtTime(v.currentTime)}` });
+      toast('Frame saved as an image card');
+    } catch {
+      toast("This video doesn't allow grabbing frames (it's hosted elsewhere)");
+    }
   };
 
   return (
@@ -161,12 +258,21 @@ export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
       actions={
         <>
           {has && (
-            <button className={`nodrag chip allow ${open ? 'on' : ''}`} title="Yorumlar" onClick={() => setOpen(!open)}>
-              <MessageSquare size={11} /> {rows.length || ''}
+            <button className={`nodrag chip allow ${open ? 'on' : ''}`} title="Comments" onClick={() => setOpen(!open)}>
+              <MessageSquare size={11} /> {rows.length ? `${resolved}/${rows.length}` : ''}
             </button>
           )}
-          {src && kind === 'file' && (
-            <button className="nodrag icon-btn allow" title="Büyüt" onClick={() => setLightbox({ src, kind: 'video' })}>
+          {kind === 'file' && !readOnly && (
+            <button className="nodrag icon-btn" title="Grab this frame as an image" onClick={grabFrame}>
+              <Camera size={12} />
+            </button>
+          )}
+          {playSrc && kind === 'file' && (
+            <button
+              className="nodrag icon-btn allow"
+              title="Full screen"
+              onClick={() => setLightbox({ src: playSrc, kind: 'video' })}
+            >
               <Maximize2 size={12} />
             </button>
           )}
@@ -175,19 +281,43 @@ export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
     >
       {has ? (
         <>
-          <div className="media-frame nodrag" style={{ aspectRatio: String(data.aspect ?? 16 / 9) }}>
-            {embed ? (
+          {(versions.length > 1 || !readOnly) && (
+            <div className="versions nodrag">
+              {versions.map((v) => (
+                <button
+                  key={v.id}
+                  className={`version allow ${v.id === shown.id ? 'on' : ''} ${approvals.some((a) => a.version === v.id) ? 'approved' : ''}`}
+                  onClick={() => showVersion(v)}
+                  title={approvals.some((a) => a.version === v.id) ? `${v.label} — approved` : v.label}
+                >
+                  {v.label}
+                  {approvals.some((a) => a.version === v.id) && <BadgeCheck size={11} />}
+                </button>
+              ))}
+              {!readOnly && (
+                <button className="version add" title="Upload a new version" onClick={() => addVersion(id, data)}>
+                  <Plus size={11} /> Version
+                </button>
+              )}
+            </div>
+          )}
+          <div className="media-frame nodrag" style={{ aspectRatio: String(shown.aspect ?? data.aspect ?? 16 / 9) }}>
+            {playEmbed ? (
               <iframe
+                key={playEmbed}
                 ref={player.frameRef}
-                src={`${embed}${embed.includes('?') ? '&' : '?'}${kind === 'youtube' ? 'enablejsapi=1&playsinline=1' : 'playsinline=1'}`}
+                src={`${playEmbed}${playEmbed.includes('?') ? '&' : '?'}${kind === 'youtube' ? 'enablejsapi=1&playsinline=1' : 'playsinline=1'}`}
                 allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                 allowFullScreen
               />
             ) : (
-              src && (
+              playSrc && (
                 <video
+                  key={playSrc}
                   ref={player.videoRef}
-                  src={src}
+                  src={playSrc}
+                  // Cloud copies need CORS so frames can be grabbed; local blobs don't.
+                  crossOrigin={playSrc.startsWith('http') ? 'anonymous' : undefined}
                   controls
                   playsInline
                   preload="metadata"
@@ -195,12 +325,23 @@ export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
                     const v = e.currentTarget;
                     player.setDuration(v.duration);
                     const aspect = Math.round((v.videoWidth / v.videoHeight) * 1000) / 1000;
-                    if (aspect && aspect !== data.aspect && !readOnly) updateData(id, { aspect });
+                    if (!aspect || readOnly || aspect === current.aspect) return;
+                    updateData(id, {
+                      aspect,
+                      ...(data.versions
+                        ? { versions: data.versions.map((x) => (x.id === current.id ? { ...x, aspect } : x)) }
+                        : {}),
+                    });
                   }}
                 />
               )
             )}
           </div>
+          {approved && (
+            <div className="approved-banner">
+              <BadgeCheck size={13} /> {shown.label} approved by {approved.by}
+            </div>
+          )}
           {player.duration > 0 && rows.some((r) => r.t !== null) && (
             <div className="timeline nodrag">
               {rows
@@ -233,33 +374,34 @@ export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
                   </div>
                   {!readOnly && (
                     <span className="comment-actions">
-                      <button className="allow" title={r.done ? 'Açık yap' : 'Çözüldü'} onClick={() => toggleDone(r)}>
+                      <button className="allow" title={r.done ? 'Reopen' : 'Resolve'} onClick={() => toggleDone(r)}>
                         <Check size={12} />
                       </button>
-                      <button className="allow" title="Sil" onClick={() => remove(r)}>
+                      <button className="allow" title="Delete" onClick={() => remove(r)}>
                         <Trash2 size={12} />
                       </button>
                     </span>
                   )}
                 </div>
               ))}
-              {!rows.length && <div className="muted small">Henüz yorum yok. Videoyu durdur ve o ana not bırak.</div>}
+              {!rows.length && (
+                <div className="muted small">
+                  No comments on {shown.label} yet. Pause the video and leave a note at that moment.
+                </div>
+              )}
               {canComment && (
                 <div className="comment-input">
-                  {readOnly && !localStorage.getItem('notebase:guestName') && (
-                    <input className="allow name" placeholder="Adın" value={name} onChange={(e) => setName(e.target.value)} />
-                  )}
                   <button
                     className={`stamp allow ${stamp !== null ? 'on' : ''}`}
-                    title={stamp !== null ? 'Zaman damgasını kaldır' : 'Videonun şu anki saniyesini ekle'}
+                    title={stamp !== null ? 'Remove timestamp' : 'Attach the current time of the video'}
                     onClick={() => setStamp(stamp !== null ? null : player.time())}
                   >
-                    <Clock size={11} /> {stamp !== null ? fmtTime(stamp) : 'an'}
+                    <Clock size={11} /> {stamp !== null ? fmtTime(stamp) : 'now'}
                   </button>
                   <input
                     className="allow"
                     value={draft}
-                    placeholder="Yorum yaz, Enter"
+                    placeholder={`Comment on ${shown.label}, Enter`}
                     onFocus={() => stamp === null && player.time() > 0 && setStamp(player.time())}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -268,6 +410,11 @@ export function VideoNode({ id, data, selected }: NodeProps<CardNode>) {
                     }}
                   />
                 </div>
+              )}
+              {readOnly && shared?.allowComments && !approved && (
+                <button className="approve-btn allow" onClick={approve}>
+                  <BadgeCheck size={14} /> Approve {shown.label}
+                </button>
               )}
             </div>
           )}

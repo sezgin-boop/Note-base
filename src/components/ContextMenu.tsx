@@ -1,6 +1,8 @@
 import { NodeToolbar, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import {
   ArrowDownToLine,
+  CalendarDays,
+  Pipette,
   ArrowUpToLine,
   Copy,
   ExternalLink,
@@ -16,10 +18,12 @@ import {
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
+import { addPaletteFor } from '../palette';
 import { cardLabel } from '../share/outline';
 import { useStore, type Background } from '../store';
 import type { CardNode, CardType } from '../types';
-import { ACCENTS } from '../types';
+import { ACCENTS, PLATFORMS } from '../types';
+import { cardTags } from '../tags';
 import { toast } from '../ui';
 import { TOOLS } from './Toolbar';
 
@@ -116,26 +120,30 @@ export function ContextMenu() {
     content = (
       <>
         <div className="menu-head">
-          {many ? `${selected.length} kart seçili` : cardLabel(node, (id) => s.boards.find((b) => b.id === id)?.name)}
+          {many ? `${selected.length} cards selected` : cardLabel(node, (id) => s.boards.find((b) => b.id === id)?.name)}
         </div>
-        {board && <Item icon={ExternalLink} label="Panoyu aç" onClick={() => s.openBoard(board.id)} />}
+        {board && <Item icon={ExternalLink} label="Open board" onClick={() => s.openBoard(board.id)} />}
         {board && !ro && (
           <Item
             icon={Pencil}
-            label="Panoyu yeniden adlandır"
+            label="Rename board"
             onClick={() => {
-              const name = prompt('Pano adı', board.name);
+              const name = prompt('Board name', board.name);
               if (name?.trim()) s.renameBoard(board.id, { name: name.trim() });
             }}
           />
         )}
-        {!ro && <Item icon={Copy} label="Çoğalt" kbd="⌘D" onClick={s.duplicateSelected} />}
+        {!ro && <Item icon={Copy} label="Duplicate" kbd="⌘D" onClick={s.duplicateSelected} />}
+        {!ro && !many && <Item icon={CalendarDays} label="Schedule & tags…" onClick={() => s.openDetails(node.id)} />}
+        {!ro && !many && (node.type === 'image' || node.type === 'scene') && (node.data.mediaId || node.data.url) && (
+          <Item icon={Pipette} label="Extract color palette" onClick={() => addPaletteFor(node)} />
+        )}
         <Item
           icon={Copy}
-          label="Metni kopyala"
+          label="Copy text"
           onClick={() => {
             navigator.clipboard?.writeText(selected.map(nodeText).filter(Boolean).join('\n\n'));
-            toast('Kopyalandı');
+            toast('Copied');
           }}
         />
         {!ro && showAccent && (
@@ -145,7 +153,7 @@ export function ContextMenu() {
                 key={c || 'none'}
                 className="accent-dot"
                 style={{ background: c || 'transparent' }}
-                title={c || 'Renksiz'}
+                title={c || 'No color'}
                 onClick={() => {
                   s.patchSelected((n) => ({ ...n, data: { ...n.data, color: c } }));
                   s.setMenu(null);
@@ -159,7 +167,7 @@ export function ContextMenu() {
             <div className="menu-sep" />
             <Item
               icon={ArrowUpToLine}
-              label="Öne getir"
+              label="Bring to front"
               onClick={() => {
                 const top = Math.max(0, ...s.nodes.map((n) => n.zIndex ?? 0));
                 s.patchSelected((n) => ({ ...n, zIndex: n.type === 'frame' ? -1 : top + 1 }));
@@ -167,7 +175,7 @@ export function ContextMenu() {
             />
             <Item
               icon={ArrowDownToLine}
-              label="Arkaya gönder"
+              label="Send to back"
               onClick={() => {
                 const bottom = Math.min(0, ...s.nodes.map((n) => n.zIndex ?? 0));
                 s.patchSelected((n) => ({ ...n, zIndex: bottom - 1 }));
@@ -175,7 +183,7 @@ export function ContextMenu() {
             />
             <Item
               icon={Unlink}
-              label="Bağlantılarını kaldır"
+              label="Remove connections"
               onClick={() => {
                 const ids = new Set(selected.map((n) => n.id));
                 s.checkpoint();
@@ -183,7 +191,13 @@ export function ContextMenu() {
               }}
             />
             <div className="menu-sep" />
-            <Item icon={Trash2} label={many ? `${selected.length} kartı sil` : 'Sil'} kbd="⌫" danger onClick={s.deleteSelected} />
+            <Item
+              icon={Trash2}
+              label={many ? `Delete ${selected.length} cards` : 'Delete'}
+              kbd="⌫"
+              danger
+              onClick={s.deleteSelected}
+            />
           </>
         )}
       </>
@@ -191,12 +205,12 @@ export function ContextMenu() {
   } else if (menu.kind === 'edge' && edge && !ro) {
     content = (
       <>
-        <div className="menu-head">Bağlantı</div>
+        <div className="menu-head">Connection</div>
         <Item
           icon={Tag}
-          label={edge.label ? 'Etiketi düzenle' : 'Etiket ekle'}
+          label={edge.label ? 'Edit label' : 'Add label'}
           onClick={() => {
-            const label = prompt('Bağlantı etiketi', String(edge.label ?? ''));
+            const label = prompt('Connection label', String(edge.label ?? ''));
             if (label === null) return;
             s.checkpoint();
             s.setEdges((es) => es.map((e) => (e.id === edge.id ? { ...e, label: label.trim() || undefined } : e)));
@@ -204,7 +218,7 @@ export function ContextMenu() {
         />
         <Item
           icon={Spline}
-          label={edge.markerEnd ? 'Oku kaldır' : 'Ok ucu ekle'}
+          label={edge.markerEnd ? 'Remove arrow' : 'Add arrow'}
           onClick={() => {
             s.checkpoint();
             s.setEdges((es) =>
@@ -219,7 +233,7 @@ export function ContextMenu() {
         <div className="menu-sep" />
         <Item
           icon={Trash2}
-          label="Bağlantıyı sil"
+          label="Delete connection"
           danger
           onClick={() => {
             s.checkpoint();
@@ -234,7 +248,7 @@ export function ContextMenu() {
       <>
         {!ro && (
           <>
-            <div className="menu-head">Buraya ekle</div>
+            <div className="menu-head">Add here</div>
             <div className="menu-grid">
               {TOOLS.map((t) => (
                 <button
@@ -254,21 +268,21 @@ export function ContextMenu() {
             <div className="menu-sep" />
             <Item
               icon={MousePointerSquareDashed}
-              label="Tümünü seç"
+              label="Select all"
               kbd="⌘A"
               onClick={() => s.setNodes((ns) => ns.map((n) => ({ ...n, selected: true })))}
             />
           </>
         )}
-        <Item icon={Maximize} label="Ekrana sığdır" onClick={() => rf.fitView({ padding: 0.2, duration: 400, maxZoom: 1 })} />
+        <Item icon={Maximize} label="Fit to screen" onClick={() => rf.fitView({ padding: 0.2, duration: 400, maxZoom: 1 })} />
         <div className="menu-sep" />
-        <div className="menu-head">Arka plan</div>
+        <div className="menu-head">Background</div>
         <div className="seg menu-seg">
           {(
             [
-              ['dots', 'Noktalar'],
-              ['grid', 'Izgara'],
-              ['none', 'Düz'],
+              ['dots', 'Dots'],
+              ['grid', 'Grid'],
+              ['none', 'Plain'],
             ] as [Background, string][]
           ).map(([v, l]) => (
             <button key={v} className={s.background === v ? 'on' : ''} onClick={() => s.setBackground(v)}>
@@ -300,14 +314,14 @@ function CardActions({ id }: { id: string }) {
   if (s.readOnly || count !== 1) return null;
   return (
     <NodeToolbar position={Position.Top} offset={10} className="card-toolbar" isVisible>
-      <button title="Çoğalt" onClick={s.duplicateSelected}>
+      <button title="Duplicate" onClick={s.duplicateSelected}>
         <Copy size={14} />
       </button>
-      <button title="Sil" className="danger" onClick={s.deleteSelected}>
+      <button title="Delete" className="danger" onClick={s.deleteSelected}>
         <Trash2 size={14} />
       </button>
       <button
-        title="Diğer"
+        title="More"
         onClick={(e) => {
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
           s.setMenu({ x: r.left, y: r.bottom + 6, kind: 'node', id });
@@ -319,12 +333,37 @@ function CardActions({ id }: { id: string }) {
   );
 }
 
+/** Schedule and tag chips shown under a card. */
+function CardMeta({ data, node }: { data: CardNode['data']; node: CardNode }) {
+  const tags = cardTags(node);
+  const tagFilter = useStore((s) => s.tagFilter);
+  if (!data.publishDate && !data.platform && !tags.length) return null;
+  const date = data.publishDate ? new Date(`${data.publishDate}T12:00:00`) : null;
+  return (
+    <div className="card-meta">
+      {(date || data.platform) && (
+        <span className="meta-chip" style={{ '--c': PLATFORMS[data.platform ?? ''] ?? 'var(--text-3)' } as React.CSSProperties}>
+          {date && date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          {date && data.platform && ' · '}
+          {data.platform}
+        </span>
+      )}
+      {tags.slice(0, 4).map((t) => (
+        <span key={t} className={`tag-chip ${tagFilter === t ? 'on' : ''}`}>
+          #{t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentType<P>) {
   return function WithActions(props: P) {
     return (
       <>
         {props.selected && <CardActions id={props.id} />}
         <Comp {...props} />
+        {props.type !== 'frame' && <CardMeta data={props.data} node={props as unknown as CardNode} />}
       </>
     );
   };

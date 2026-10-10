@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { cloudConfigured, supabase, toRemoteComment } from './cloud';
+import { cloudConfigured, supabase, toRemoteComment, type RemoteComment } from './cloud';
 import * as db from './db';
 import { hasPendingSave, useStore } from './store';
 import type { BoardContent, BoardMeta } from './types';
@@ -60,6 +60,7 @@ interface Row {
   updated_at: number;
   share_id: string | null;
   share_comments: boolean;
+  inbox?: boolean;
   content?: BoardContent;
 }
 
@@ -71,7 +72,12 @@ const toMeta = (r: Row): BoardMeta => ({
   updatedAt: Number(r.updated_at),
   shareId: r.share_id,
   shareComments: r.share_comments,
+  inbox: !!r.inbox,
 });
+
+// Databases set up before the inbox column existed still sync; only the inbox flag is skipped.
+let hasInboxColumn = true;
+const missingInbox = (e: { message?: string } | null) => !!e && /inbox/.test(e.message ?? '');
 
 async function pushBoards(metas: BoardMeta[]) {
   if (!metas.length) return;
@@ -86,11 +92,16 @@ async function pushBoards(metas: BoardMeta[]) {
         updated_at: m.updatedAt,
         share_id: m.shareId ?? null,
         share_comments: m.shareComments ?? true,
+        ...(hasInboxColumn ? { inbox: !!m.inbox } : {}),
         content,
       };
     }),
   );
-  const { error } = await supabase!.from('boards').upsert(rows);
+  let { error } = await supabase!.from('boards').upsert(rows);
+  if (missingInbox(error) && hasInboxColumn) {
+    hasInboxColumn = false;
+    ({ error } = await supabase!.from('boards').upsert(rows.map(({ inbox, ...r }: any) => r)));
+  }
   if (error) throw error;
   for (const m of metas) setPushed(m.id, m.updatedAt);
 }
@@ -138,9 +149,14 @@ async function syncOnce() {
   useCloud.setState({ status: 'syncing' });
   await flushDeletes();
 
-  const { data, error } = await supabase!.from('boards').select('id,name,icon,parent_id,updated_at,share_id,share_comments');
+  const columns = 'id,name,icon,parent_id,updated_at,share_id,share_comments';
+  let { data, error } = await supabase!.from('boards').select(hasInboxColumn ? `${columns},inbox` : columns);
+  if (missingInbox(error) && hasInboxColumn) {
+    hasInboxColumn = false;
+    ({ data, error } = await supabase!.from('boards').select(columns));
+  }
   if (error) throw error;
-  const remote = new Map((data as Row[]).map((r) => [r.id, r]));
+  const remote = new Map((data as unknown as Row[]).map((r) => [r.id, r]));
   const local = useStore.getState().boards;
   const known = pushed();
 
@@ -209,14 +225,51 @@ export async function loadClientComments() {
   const s = useStore.getState();
   if (!supabase || !useCloud.getState().user || s.readOnly || !s.currentId) return;
   const { data, error } = await supabase.from('comments').select('*').eq('board_id', s.currentId).order('created_at');
-  if (!error && useStore.getState().currentId === s.currentId) s.setClientComments(data.map(toRemoteComment));
+  if (error || useStore.getState().currentId !== s.currentId) return;
+  const list = data.map(toRemoteComment);
+  s.setClientComments(list);
+  applyApprovals(list);
+}
+
+const OPEN_STATUSES = new Set(['brief', 'shoot', 'edit', 'revision']);
+
+/**
+ * A client approved a video version: record it on the video card and move the job it belongs to
+ * (a connected job card, or the board's only job card) to Delivered. Each approval is applied once.
+ */
+function applyApprovals(list: RemoteComment[]) {
+  for (const a of list.filter((c) => c.kind === 'approval')) {
+    const s = useStore.getState();
+    const video = s.nodes.find((n) => n.id === a.nodeId);
+    if (!video || video.data.approvals?.some((x) => x.id === a.id)) continue;
+    const version = a.version ?? 'v1';
+    const label = video.data.versions?.find((v) => v.id === version)?.label ?? 'V1';
+    s.updateData(video.id, {
+      approvals: [
+        ...(video.data.approvals ?? []),
+        { id: a.id, version, by: a.author, at: Date.parse(a.createdAt) || Date.now() },
+      ],
+    });
+    const linked = new Set(
+      s.edges
+        .filter((e) => e.source === video.id || e.target === video.id)
+        .map((e) => (e.source === video.id ? e.target : e.source)),
+    );
+    let jobs = s.nodes.filter((n) => n.type === 'project' && linked.has(n.id));
+    if (!jobs.length) {
+      const all = s.nodes.filter((n) => n.type === 'project');
+      if (all.length === 1) jobs = all;
+    }
+    for (const j of jobs) if (OPEN_STATUSES.has(j.data.status ?? 'brief')) s.updateData(j.id, { status: 'delivered' });
+    toast(`${a.author} approved ${label}${jobs.length ? ' — job marked Delivered' : ''}`, 6000);
+  }
 }
 
 export async function updateClientComment(id: string, patch: { done?: boolean } | null) {
   if (!supabase) return;
   const q = patch ? supabase.from('comments').update(patch).eq('id', id) : supabase.from('comments').delete().eq('id', id);
   const { error } = await q;
-  if (error) toast(`Yorum güncellenemedi: ${error.message}`);
+  if (error) toast(`Couldn't update the comment: ${error.message}`);
   await loadClientComments();
 }
 
@@ -246,7 +299,7 @@ export async function uploadPendingMedia() {
       } else if (blob.size > MAX_FREE_UPLOAD || /size|too large|413/i.test(error.message)) {
         failed.add(id);
         ls.set('uploadFailed', [...failed]);
-        toast(`Bir dosya (${Math.round(blob.size / 1048576)} MB) buluta yüklenemedi: boyut sınırı. Sadece bu cihazda duracak.`);
+        toast(`A file (${Math.round(blob.size / 1048576)} MB) is over the cloud size limit. It stays on this device only.`);
       } else {
         throw error;
       }
@@ -263,7 +316,7 @@ export async function uploadPendingMedia() {
 // ---------- Auth ----------
 
 export async function signIn(email: string, password: string, create: boolean) {
-  if (!supabase) throw new Error('Bulut ayarlanmamış');
+  if (!supabase) throw new Error('Cloud is not set up');
   const { data, error } = create
     ? await supabase.auth.signUp({ email, password })
     : await supabase.auth.signInWithPassword({ email, password });
@@ -286,9 +339,9 @@ async function firstSyncForUser(userId: string) {
   const local = useStore.getState().boards;
   if (count && local.length) {
     const keep = confirm(
-      `Bulutta zaten ${count} pano var.\n\n` +
-        `Bu cihazdaki ${local.length} pano da buluta eklensin mi?\n\n` +
-        'Tamam: ikisini birleştir · İptal: bu cihazdakileri sil, buluttakileri kullan',
+      `Your cloud already has ${count} boards.\n\n` +
+        `Add the ${local.length} boards on this device to it as well?\n\n` +
+        'OK: merge both · Cancel: remove this device’s boards and use the cloud ones',
     );
     if (!keep) {
       for (const b of local) await db.deleteBoard(b.id, true);
