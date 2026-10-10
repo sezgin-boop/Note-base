@@ -10,9 +10,11 @@ const env = (...names: string[]) => names.map((n) => process.env[n]).find(Boolea
 const SUPABASE_URL = env('VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL');
 const SUPABASE_KEY = env(
   'VITE_SUPABASE_ANON_KEY',
+  'VITE_SUPABASE_PUBLISHABLE_KEY',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
   'SUPABASE_ANON_KEY',
+  'SUPABASE_PUBLISHABLE_KEY',
 );
 
 const page = (status: number, title: string, text: string) =>

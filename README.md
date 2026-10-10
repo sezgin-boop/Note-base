@@ -47,7 +47,7 @@ Bulut için ücretsiz bir [Supabase](https://supabase.com) projesi kullanılır.
 4. **Project Settings → API Keys** (ya da _Data API_) sayfasından **Project URL** ve **anon / publishable key** değerlerini kopyala.
 5. **Vercel** → projen → **Settings → Environment Variables** kısmına ekle:
    - `VITE_SUPABASE_URL` = Project URL
-   - `VITE_SUPABASE_ANON_KEY` = anon / publishable key
+   - `VITE_SUPABASE_ANON_KEY` (ya da `VITE_SUPABASE_PUBLISHABLE_KEY`) = anon / publishable key
 
    Sonra **Deployments** → en üstteki yayın → **⋯ → Redeploy**.
 6. Siteye gir → sol alttaki **Bulut senkronu** → **Hesap oluştur**.

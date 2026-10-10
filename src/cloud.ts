@@ -5,7 +5,11 @@ import type { BoardContent } from './types';
 const env = import.meta.env;
 export const SUPABASE_URL: string = env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_KEY: string =
-  env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
+  env.VITE_SUPABASE_ANON_KEY ||
+  env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  '';
 
 export const cloudConfigured = !!(SUPABASE_URL && SUPABASE_KEY);
 export const supabase = cloudConfigured ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
