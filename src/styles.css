@@ -47,6 +47,8 @@
   --shadow-card: 0 1px 0 var(--highlight) inset, 0 1px 2px rgba(0, 0, 0, 0.35), 0 14px 34px -12px rgba(0, 0, 0, 0.7);
   --shadow-float: 0 1px 0 var(--highlight) inset, 0 20px 50px -12px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.3);
   --green: #34d399;
+  /* default accent of scene cards */
+  --scene-accent: #34d399;
   --amber: #fbbf24;
   --red: #f87171;
   --radius: 16px;
@@ -249,7 +251,7 @@ kbd {
   color: #fff;
   background: var(--grad-solid);
   box-shadow:
-    0 6px 16px -6px rgba(139, 92, 246, 0.8),
+    0 6px 16px -6px color-mix(in srgb, var(--brand-strong) 80%, transparent),
     0 1px 0 rgba(255, 255, 255, 0.35) inset;
 }
 .logo svg circle:first-of-type {
@@ -667,7 +669,7 @@ a.side-btn {
   color: #fff;
   border-color: transparent;
   box-shadow:
-    0 10px 26px -10px rgba(124, 92, 240, 0.9),
+    0 10px 26px -10px color-mix(in srgb, var(--brand-strong) 90%, transparent),
     0 1px 0 rgba(255, 255, 255, 0.3) inset;
 }
 .top-btn.primary:hover {
@@ -1469,7 +1471,7 @@ a.side-btn {
   color: #fff;
   background: var(--grad-solid);
   box-shadow:
-    0 10px 24px -10px rgba(124, 92, 240, 0.9),
+    0 10px 24px -10px color-mix(in srgb, var(--brand-strong) 90%, transparent),
     0 1px 0 rgba(255, 255, 255, 0.3) inset;
   transition:
     filter 0.12s,
@@ -3631,7 +3633,7 @@ select.field-input {
     background: var(--grad-solid);
     color: #fff;
     box-shadow:
-      0 14px 30px -10px rgba(124, 92, 240, 0.9),
+      0 14px 30px -10px color-mix(in srgb, var(--brand-strong) 90%, transparent),
       0 1px 0 rgba(255, 255, 255, 0.3) inset;
   }
   .calendar {
@@ -4014,4 +4016,218 @@ select.field-input {
   .style-tabs {
     margin-bottom: 8px;
   }
+}
+
+/* ==========================================================================
+   Color themes (top bar → 🎨). Each theme sets a few colors; backgrounds, cards,
+   panels, lines and dots are mixed from them, in dark and light mode alike.
+   Violet is the original look and needs no overrides.
+   ========================================================================== */
+:root[data-palette='fire'] {
+  --pal: #ff5a1f;
+  --pal-2: #ef4444;
+  --pal-hi: #fb923c;
+  --pal-lo: #ea580c;
+}
+:root[data-palette='ocean'] {
+  --pal: #0ea5e9;
+  --pal-2: #3b82f6;
+  --pal-hi: #38bdf8;
+  --pal-lo: #0284c7;
+}
+:root[data-palette='forest'] {
+  --pal: #22c55e;
+  --pal-2: #14b8a6;
+  --pal-hi: #4ade80;
+  --pal-lo: #16a34a;
+}
+:root[data-palette='rose'] {
+  --pal: #ec4899;
+  --pal-2: #e11d48;
+  --pal-hi: #f472b6;
+  --pal-lo: #db2777;
+}
+:root[data-palette='gold'] {
+  --pal: #f59e0b;
+  --pal-2: #eab308;
+  --pal-hi: #fbbf24;
+  --pal-lo: #b45309;
+}
+:root[data-palette='aurora'] {
+  --pal: #14b8a6;
+  --pal-2: #a855f7;
+  --pal-hi: #5eead4;
+  --pal-lo: #0d9488;
+}
+:root[data-palette='mono'] {
+  --pal: #8a8a8a;
+  --pal-2: #5a5a5a;
+  --pal-hi: #e5e5e5;
+  --pal-lo: #27272a;
+}
+
+/* dark mode */
+:root[data-palette]:not([data-palette='violet']) {
+  --bg: color-mix(in srgb, var(--pal) 6%, #070708);
+  --glow-1: color-mix(in srgb, var(--pal) 17%, transparent);
+  --glow-2: color-mix(in srgb, var(--pal-2) 10%, transparent);
+  --panel: color-mix(in srgb, var(--pal) 5%, #121216);
+  --card: color-mix(in srgb, var(--pal) 6%, #141418);
+  --card-2: color-mix(in srgb, var(--pal) 7%, #1c1c22);
+  --card-3: color-mix(in srgb, var(--pal) 8%, #24242b);
+  --sunken: color-mix(in srgb, var(--pal) 5%, #0d0d10);
+  --glass: color-mix(in srgb, var(--pal) 6%, rgba(20, 20, 25, 0.72));
+  --glass-strong: color-mix(in srgb, var(--pal) 6%, rgba(24, 24, 30, 0.9));
+  --popover: color-mix(in srgb, var(--pal) 6%, rgba(24, 24, 30, 0.92));
+  --toolbar-bg: color-mix(in srgb, var(--pal) 6%, rgba(20, 20, 25, 0.78));
+  --tile-a: color-mix(in srgb, var(--pal) 10%, #2a2a33);
+  --tile-b: color-mix(in srgb, var(--pal) 6%, #141418);
+  --border: color-mix(in srgb, var(--pal) 14%, rgba(255, 255, 255, 0.07));
+  --border-strong: color-mix(in srgb, var(--pal) 18%, rgba(255, 255, 255, 0.13));
+  --dots: color-mix(in srgb, var(--pal) 32%, rgba(255, 255, 255, 0.08));
+  --grid: color-mix(in srgb, var(--pal) 20%, rgba(255, 255, 255, 0.03));
+  --wire: color-mix(in srgb, var(--pal) 40%, rgba(255, 255, 255, 0.22));
+  --minimap-node: color-mix(in srgb, var(--pal) 30%, rgba(255, 255, 255, 0.14));
+  --minimap-mask: color-mix(in srgb, var(--pal) 5%, rgba(8, 8, 10, 0.7));
+  --brand: var(--pal-hi);
+  --brand-strong: var(--pal);
+  --brand-soft: color-mix(in srgb, var(--pal-hi) 15%, transparent);
+  --grad: linear-gradient(135deg, color-mix(in srgb, var(--pal-hi) 60%, white) 0%, var(--pal-hi) 40%, var(--pal-2) 100%);
+  --grad-solid: linear-gradient(135deg, var(--pal) 0%, color-mix(in srgb, var(--pal) 50%, var(--pal-2)) 45%, var(--pal-2) 100%);
+  --scene-accent: var(--pal-hi);
+}
+/* light mode */
+:root[data-palette]:not([data-palette='violet'])[data-theme='light'] {
+  --bg: color-mix(in srgb, var(--pal) 7%, #f5f4f1);
+  --glow-1: color-mix(in srgb, var(--pal) 12%, transparent);
+  --glow-2: color-mix(in srgb, var(--pal-2) 8%, transparent);
+  --panel: color-mix(in srgb, var(--pal) 2%, #ffffff);
+  --card: color-mix(in srgb, var(--pal) 2.5%, #ffffff);
+  --card-2: color-mix(in srgb, var(--pal) 5%, #f4f4f6);
+  --card-3: color-mix(in srgb, var(--pal) 8%, #ebebef);
+  --sunken: color-mix(in srgb, var(--pal) 5%, #f3f3f6);
+  --glass: color-mix(in srgb, var(--pal) 4%, rgba(255, 255, 255, 0.74));
+  --glass-strong: color-mix(in srgb, var(--pal) 3%, rgba(255, 255, 255, 0.92));
+  --popover: color-mix(in srgb, var(--pal) 3%, rgba(255, 255, 255, 0.95));
+  --toolbar-bg: color-mix(in srgb, var(--pal) 4%, rgba(255, 255, 255, 0.84));
+  --tile-a: #ffffff;
+  --tile-b: color-mix(in srgb, var(--pal) 6%, #efeff3);
+  --border: color-mix(in srgb, var(--pal) 16%, rgba(20, 20, 40, 0.07));
+  --border-strong: color-mix(in srgb, var(--pal) 22%, rgba(20, 20, 40, 0.13));
+  --dots: color-mix(in srgb, var(--pal) 35%, rgba(20, 20, 40, 0.12));
+  --grid: color-mix(in srgb, var(--pal) 18%, rgba(20, 20, 40, 0.05));
+  --wire: color-mix(in srgb, var(--pal) 45%, rgba(20, 20, 40, 0.26));
+  --minimap-node: color-mix(in srgb, var(--pal) 30%, rgba(20, 20, 40, 0.12));
+  --minimap-mask: color-mix(in srgb, var(--pal) 6%, rgba(244, 243, 240, 0.7));
+  --brand: var(--pal-lo);
+  --brand-strong: color-mix(in srgb, var(--pal-lo) 85%, black);
+  --brand-soft: color-mix(in srgb, var(--pal-lo) 11%, transparent);
+  --scene-accent: var(--pal-lo);
+}
+:root[data-palette='mono'][data-theme='light'] {
+  --pal-hi: #3f3f46;
+}
+
+/* Switching themes: the new colors spread from the button in a circle. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Theme picker */
+.palette-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--grad-solid);
+  box-shadow:
+    0 0 0 2px var(--glass),
+    0 0 0 3px color-mix(in srgb, var(--brand) 50%, transparent);
+}
+.theme-pop {
+  position: fixed;
+  z-index: 60;
+  width: 330px;
+  max-width: calc(100vw - 16px);
+  padding: 14px;
+  border-radius: 22px;
+  background: var(--popover);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  animation: pop 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.theme-pop .menu-head {
+  padding: 0 2px 8px;
+}
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.palette-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.palette-card.on {
+  color: var(--text);
+}
+.palette-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 0.82;
+  border-radius: 13px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.18s;
+}
+.palette-card:hover .palette-preview {
+  transform: translateY(-2px) scale(1.04);
+}
+.palette-card.on .palette-preview {
+  box-shadow:
+    0 0 0 2px var(--popover),
+    0 0 0 4px var(--brand);
+}
+.palette-preview .pv-glow {
+  position: absolute;
+  inset: 0;
+}
+.palette-preview .pv-card {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 22%;
+  height: 38%;
+  border-radius: 6px;
+  border-top: 2px solid var(--pv-accent);
+}
+.palette-preview .pv-pill {
+  position: absolute;
+  left: 18%;
+  bottom: 14%;
+  width: 46%;
+  height: 12%;
+  border-radius: 99px;
+}
+.theme-modes {
+  display: flex;
+  margin-top: 12px;
+}
+.theme-modes button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }

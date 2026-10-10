@@ -1,3 +1,4 @@
+import { ThemePicker } from './ThemePicker';
 import { Bot, ChevronRight, Eye, Hash, PanelLeft, Redo2, Search, Share2, Sparkles, Undo2, X } from 'lucide-react';
 import { boardTags } from '../tags';
 import { ExportMenu } from './Export';
@@ -78,6 +79,7 @@ export function Topbar() {
           <span className="muted small status-text">
             {nodes.length} cards · {cloudConfigured && user ? <SyncLabel /> : 'saved on this device'}
           </span>
+          <ThemePicker variant="top" />
           <TagFilter />
           <ExportMenu />
           <button className="top-btn" onClick={() => setPanel('ai')} title="Work with AI (A)">

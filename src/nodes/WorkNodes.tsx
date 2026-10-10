@@ -54,7 +54,7 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
       icon={<Clapperboard size={12} />}
       label={`Scene ${String(data.number ?? 1).padStart(2, '0')}`}
       selected={selected}
-      color={data.color || '#34d399'}
+      color={data.color || 'var(--scene-accent)'}
       resizable="width"
       minWidth={200}
       actions={

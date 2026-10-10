@@ -1,3 +1,4 @@
+import { applyTheme } from './components/ThemePicker';
 import { StylePanel } from './components/StylePanel';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
@@ -113,17 +114,14 @@ function openLinkedBoard() {
 /** Follow the system theme unless the user picked one. */
 function useTheme() {
   const theme = useStore((s) => s.theme);
+  const palette = useStore((s) => s.palette);
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: light)');
-    const apply = () => {
-      const mode = theme === 'system' ? (media.matches ? 'light' : 'dark') : theme;
-      document.documentElement.dataset.theme = mode;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'light' ? '#f6f6f7' : '#060607');
-    };
+    const apply = () => applyTheme(theme, palette);
     apply();
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
-  }, [theme]);
+  }, [theme, palette]);
 }
 
 const shareId = new URLSearchParams(location.search).get('share');

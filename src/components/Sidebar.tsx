@@ -1,3 +1,4 @@
+import { ThemePicker } from './ThemePicker';
 import {
   Briefcase,
   CalendarDays,
@@ -5,12 +6,9 @@ import {
   Cloud,
   CloudOff,
   Download,
-  Monitor,
-  Moon,
   Plus,
   Search,
   Smartphone,
-  Sun,
   Trash2,
   Upload,
   Zap,
@@ -20,7 +18,7 @@ import { useCloud } from '../sync';
 import { SyncLabel, useCanInstall } from './Dialogs';
 import { useState } from 'react';
 import { exportWorkspace, importWorkspace } from '../db';
-import { isPhone, useStore, type Panel, type Theme } from '../store';
+import { isPhone, useStore, type Panel } from '../store';
 import { TEMPLATES, type TemplateId } from '../templates';
 import type { BoardMeta } from '../types';
 
@@ -128,18 +126,6 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
       </div>
       {open && children.map((c) => <TreeItem key={c.id} board={c} depth={depth + 1} />)}
     </>
-  );
-}
-
-const THEME_NEXT: Record<Theme, Theme> = { system: 'dark', dark: 'light', light: 'system' };
-
-function ThemeButton() {
-  const { theme, setTheme } = useStore();
-  const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
-  return (
-    <button className="side-btn theme-btn" title={`Theme: ${theme}`} onClick={() => setTheme(THEME_NEXT[theme])}>
-      <Icon size={14} />
-    </button>
   );
 }
 
@@ -274,7 +260,7 @@ export function Sidebar() {
             </button>
           )}
           <div className="side-footer">
-            <ThemeButton />
+            <ThemePicker variant="side" />
             <button className="side-btn" onClick={doExport} title="Back up all boards and media to one file">
               <Download size={14} /> Back up
             </button>

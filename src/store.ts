@@ -35,6 +35,7 @@ export type Panel =
   | 'style'
   | null;
 export type Theme = 'system' | 'dark' | 'light';
+export type Palette = 'violet' | 'fire' | 'ocean' | 'forest' | 'rose' | 'gold' | 'aurora' | 'mono';
 export type Background = 'dots' | 'grid' | 'none';
 
 export interface MenuState {
@@ -77,6 +78,8 @@ interface State {
   /** Only cards with this tag are highlighted. */
   tagFilter: string | null;
   theme: Theme;
+  /** Color theme of the whole app (on this device). */
+  palette: Palette;
   /** Cards animating while a section folds or unfolds (not saved). */
   fx: Record<string, SectionFx>;
 
@@ -114,6 +117,7 @@ interface State {
   openDetails: (id: string) => void;
   setTagFilter: (t: string | null) => void;
   setTheme: (t: Theme) => void;
+  setPalette: (p: Palette) => void;
   /** Update a card that may live on a board that isn't open. */
   patchCard: (boardId: string, cardId: string, patch: Partial<CardData>) => Promise<void>;
   /** Add a card to any board (the open one or one stored on this device). */
@@ -192,6 +196,7 @@ export const useStore = create<State>((set, get) => {
     detailsId: null,
     tagFilter: null,
     theme: (localStorage.getItem('notebase:theme') as Theme) || 'system',
+    palette: (localStorage.getItem('notebase:palette') as Palette) || 'violet',
     fx: {},
 
     init: () =>
@@ -422,6 +427,10 @@ export const useStore = create<State>((set, get) => {
     setTheme: (theme) => {
       localStorage.setItem('notebase:theme', theme);
       set({ theme });
+    },
+    setPalette: (palette) => {
+      localStorage.setItem('notebase:palette', palette);
+      set({ palette });
     },
 
     patchCard: async (boardId, cardId, patch) => {
