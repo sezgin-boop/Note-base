@@ -1,7 +1,7 @@
 import type { NodeProps } from '@xyflow/react';
 import { ExternalLink, Image as ImageIcon, Link2, Maximize2, Upload } from 'lucide-react';
 import { useState } from 'react';
-import { hostname, saveMedia, useMediaUrl, youtubeId } from '../db';
+import { hostname, saveMedia, useMediaUrl, usePreviewUrl, youtubeId } from '../db';
 import { useStore } from '../store';
 import type { CardNode } from '../types';
 import { Shell } from './Shell';
@@ -54,6 +54,7 @@ export function Caption({ id, value }: { id: string; value?: string }) {
 
 export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
   const src = useMediaUrl(data.mediaId, data.url);
+  const preview = usePreviewUrl(data.mediaId, data.url);
   const setLightbox = useStore((s) => s.setLightbox);
   const has = data.mediaId || data.url;
   return (
@@ -76,7 +77,7 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
       {has ? (
         <>
           <div className="media-frame" onDoubleClick={() => src && setLightbox({ src, kind: 'image' })}>
-            {src && <img src={src} alt={data.caption ?? ''} draggable={false} />}
+            {preview && <img src={preview} alt={data.caption ?? ''} draggable={false} decoding="async" />}
           </div>
           <Caption id={id} value={data.caption} />
         </>

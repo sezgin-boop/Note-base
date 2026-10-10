@@ -1,5 +1,5 @@
 import type { NodeProps } from '@xyflow/react';
-import { BadgeCheck, Camera, Check, Clock, Maximize2, MessageSquare, Plus, Trash2, Video } from 'lucide-react';
+import { BadgeCheck, Camera, Check, Clock, Maximize2, MessageSquare, Play, Plus, Trash2, Video } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 import { addSharedComment, type RemoteComment } from '../cloud';
@@ -15,11 +15,13 @@ import { Shell } from './Shell';
 type Kind = 'file' | 'youtube' | 'vimeo';
 
 /** Reads the playhead of a <video> or a YouTube/Vimeo embed (via their postMessage APIs) and seeks it. */
-function usePlayer(kind: Kind | null) {
+function usePlayer(kind: Kind | null, live: boolean) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const clock = useRef({ time: 0, duration: 0 });
   const [duration, setDuration] = useState(0);
+  /** Called when a YouTube/Vimeo player isn't loaded yet (it loads on demand). */
+  const onIdleSeek = useRef<((t: number) => void) | null>(null);
 
   useEffect(() => {
     if (kind !== 'youtube' && kind !== 'vimeo') return;
@@ -57,10 +59,11 @@ function usePlayer(kind: Kind | null) {
       frame?.removeEventListener('load', hello);
       clearTimeout(t);
     };
-  }, [kind]);
+  }, [kind, live]);
 
   const time = () => (kind === 'file' ? (videoRef.current?.currentTime ?? 0) : clock.current.time);
   const seek = (t: number) => {
+    if (kind !== 'file' && !frameRef.current) return onIdleSeek.current?.(t);
     if (kind === 'file' && videoRef.current) {
       videoRef.current.currentTime = t;
       videoRef.current.play().catch(() => {});
@@ -76,8 +79,21 @@ function usePlayer(kind: Kind | null) {
       post({ method: 'play' });
     }
   };
-  return { videoRef, frameRef, time, seek, duration, setDuration };
+  return { videoRef, frameRef, time, seek, duration, setDuration, onIdleSeek };
 }
+
+const poster = (embed: string) => {
+  const yt = embed.match(/youtube\.com\/embed\/([\w-]{11})/);
+  return yt ? `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg` : null;
+};
+
+const embedSrc = (embed: string, kind: Kind | null, start: number) => {
+  const sep = embed.includes('?') ? '&' : '?';
+  const t = Math.floor(start);
+  return kind === 'youtube'
+    ? `${embed}${sep}enablejsapi=1&playsinline=1&autoplay=1${t ? `&start=${t}` : ''}`
+    : `${embed}${sep}playsinline=1&autoplay=1${t ? `#t=${t}s` : ''}`;
+};
 
 interface Row {
   id: string;
@@ -123,7 +139,11 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
   const clientComments = useStore((s) => s.clientComments[id]);
   const embed = data.url ? embedUrl(data.url) : null;
   const kind: Kind | null = embed ? (embed.includes('vimeo') ? 'vimeo' : 'youtube') : src ? 'file' : null;
-  const player = usePlayer(kind);
+  // YouTube / Vimeo players are whole web pages: load one only when it's played. A board full of
+  // them would otherwise use enough memory to crash a phone's browser.
+  const [live, setLive] = useState<{ start: number } | null>(null);
+  const player = usePlayer(kind, !!live);
+  player.onIdleSeek.current = (t) => setLive({ start: t });
 
   const versions = videoVersions(data);
   const current = versions.find((v) => v.id === data.versionId) ?? versions.at(-1)!;
@@ -137,6 +157,8 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
   const viewSrc = useMediaUrl(shown.mediaId, shown.url);
   const playSrc = readOnly ? viewSrc : src;
   const playEmbed = readOnly ? (shown.url ? embedUrl(shown.url) : null) : embed;
+
+  useEffect(() => setLive(null), [playEmbed]);
 
   const inVersion = (v?: string | null) => (v ?? 'v1') === shown.id;
   const own = data.comments ?? [];
@@ -308,11 +330,18 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
             </div>
           )}
           <div className="media-frame nodrag" style={{ aspectRatio: String(shown.aspect ?? data.aspect ?? 16 / 9) }}>
-            {playEmbed ? (
+            {playEmbed && !live ? (
+              <button className="embed-poster" title="Play" onClick={() => setLive({ start: 0 })}>
+                {poster(playEmbed) && <img src={poster(playEmbed)!} alt="" draggable={false} loading="lazy" />}
+                <span className="embed-play">
+                  <Play size={20} fill="currentColor" />
+                </span>
+              </button>
+            ) : playEmbed && live ? (
               <iframe
                 key={playEmbed}
                 ref={player.frameRef}
-                src={`${playEmbed}${playEmbed.includes('?') ? '&' : '?'}${kind === 'youtube' ? 'enablejsapi=1&playsinline=1' : 'playsinline=1'}`}
+                src={embedSrc(playEmbed, kind, live.start)}
                 allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                 allowFullScreen
               />

@@ -310,6 +310,7 @@ export function Canvas() {
   };
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  const phone = useMemo(() => matchMedia('(max-width: 720px), (pointer: coarse)').matches, []);
   useTouchNavigation(canvasRef, setViewport);
 
   return (
@@ -371,6 +372,8 @@ export function Canvas() {
         multiSelectionKeyCode={['Meta', 'Control']}
         panOnScroll
         zoomActivationKeyCode={['Meta', 'Control']}
+        // Phones: keep only the cards on screen in the page, so big boards stay within memory.
+        onlyRenderVisibleElements={phone}
         minZoom={0.1}
         maxZoom={3}
         defaultEdgeOptions={{ type: 'default', interactionWidth: 20 }}

@@ -1,6 +1,6 @@
 import type { NodeProps } from '@xyflow/react';
 import { Briefcase, Clapperboard, Copy, ImagePlus, LayoutDashboard, Palette, Sparkles, Volume2 } from 'lucide-react';
-import { saveMedia, useMediaUrl } from '../db';
+import { saveMedia, useMediaUrl, usePreviewUrl } from '../db';
 import { useRef, useState } from 'react';
 import { toast } from '../ui';
 import { takeFocus, useStore } from '../store';
@@ -28,6 +28,7 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
   const updateData = useStore((s) => s.updateData);
   const setLightbox = useStore((s) => s.setLightbox);
   const src = useMediaUrl(data.mediaId);
+  const preview = usePreviewUrl(data.mediaId);
   const upload = async () => {
     const file = await pickFile('image/*');
     if (file) updateData(id, { mediaId: await saveMedia(file) });
@@ -49,7 +50,7 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
       />
       <div className="scene-thumb nodrag" onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}>
         {src ? (
-          <img src={src} alt="" draggable={false} />
+          preview && <img src={preview} alt="" draggable={false} decoding="async" />
         ) : (
           <span>
             <ImagePlus size={16} /> Add frame
