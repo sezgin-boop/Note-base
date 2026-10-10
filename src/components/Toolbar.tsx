@@ -8,14 +8,11 @@ import {
   Link2,
   ListTodo,
   Palette,
-  Redo2,
   Square,
   StickyNote,
-  Undo2,
   Video,
 } from 'lucide-react';
 import { addTyped } from '../actions';
-import { useStore } from '../store';
 import type { CardType } from '../types';
 
 export const TOOLS: { type: CardType; label: string; key: string; icon: React.ReactNode }[] = [
@@ -44,7 +41,6 @@ export function useAddAtCenter() {
 
 export function Toolbar() {
   const addAtCenter = useAddAtCenter();
-  const { undo, redo, past, future } = useStore();
   return (
     <div className="toolbar">
       {TOOLS.map((t, i) => (
@@ -66,19 +62,6 @@ export function Toolbar() {
           </button>
         </span>
       ))}
-      <span className="tool-sep" />
-      <button className="tool" disabled={!past.length} onClick={undo}>
-        <Undo2 size={17} />
-        <span className="tip">
-          Undo <kbd>⌘Z</kbd>
-        </span>
-      </button>
-      <button className="tool" disabled={!future.length} onClick={redo}>
-        <Redo2 size={17} />
-        <span className="tip">
-          Redo <kbd>⇧⌘Z</kbd>
-        </span>
-      </button>
     </div>
   );
 }

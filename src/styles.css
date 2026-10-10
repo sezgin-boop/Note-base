@@ -138,7 +138,12 @@ kbd {
     var(--bg);
 }
 /* The canvas starts right of the floating sidebar so cards never hide behind it. */
-.canvas { position: absolute; inset: 0; transition: left 0.18s ease; }
+.canvas { position: absolute; inset: 0; transition: left 0.18s ease; touch-action: none; }
+/* Cards clip their content (overflow), which would hand touch gestures on them back to the browser:
+   keep every gesture on the canvas so cards drag and the board pans / pinch-zooms on phones.
+   Scrolling lists (video comments) still scroll. */
+.react-flow__node, .react-flow__node * { touch-action: none; }
+.react-flow__node .nowheel { touch-action: pan-y; }
 .app:not(.no-sidebar) .canvas { left: calc(var(--side-w) + var(--gap)); }
 
 .sidebar {
@@ -238,6 +243,14 @@ a.side-btn { text-decoration: none; }
 .title-input:hover { background: var(--highlight); }
 .title-input:focus { border-color: var(--brand); background: var(--sunken); }
 .topbar-spacer { flex: 1; }
+.history {
+  display: flex; align-items: center; gap: 2px; height: 40px; padding: 0 3px; flex-shrink: 0;
+  background: var(--glass); border: 1px solid var(--border); border-radius: 13px; box-shadow: var(--shadow-float); backdrop-filter: blur(20px);
+}
+.history-btn { display: grid; place-items: center; width: 34px; height: 32px; border-radius: 10px; color: var(--text-2); transition: background 0.12s, color 0.12s, transform 0.12s; }
+.history-btn:hover:not(:disabled) { background: var(--highlight); color: var(--text); }
+.history-btn:active:not(:disabled) { transform: scale(0.9); }
+.history-btn:disabled { opacity: 0.3; cursor: default; }
 .status-text { white-space: nowrap; margin-left: auto; padding: 0 6px; }
 .icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: var(--text-2); transition: background 0.12s, color 0.12s; }
 .icon-btn:hover { background: var(--card-3); color: var(--text); }
@@ -885,8 +898,16 @@ select.field-input { padding: 9px 10px; }
   .sidebar { box-shadow: 20px 0 60px rgba(0, 0, 0, 0.5); }
   .crumb:not(.current) { display: none; }
   .title-input { font-size: 19px; }
-  .topbar { gap: 6px; }
-  .top-btn { width: 40px; padding: 0; justify-content: center; }
+  .topbar { gap: 5px; }
+  .top-btn { width: 36px; padding: 0; justify-content: center; flex-shrink: 0; }
+  .topbar > .icon-btn { width: 36px; flex-shrink: 0; }
+  .crumbs { flex: 1 1 auto; overflow: hidden; }
+  .crumb.current { flex: 1 1 auto; min-width: 0; padding-left: 2px; }
+  .crumb.current .title-input { flex: 1 1 auto; width: 100%; min-width: 0; padding: 3px 2px; text-overflow: ellipsis; }
+  .crumbs { padding: 0 4px 0 2px; }
+  .history { padding: 0 2px; gap: 0; }
+  .history-btn { width: 34px; height: 34px; }
+  .history-btn:hover:not(:disabled) { background: none; }
   .tool { width: 42px; height: 42px; }
   .tip { display: none; }
   .jobs { width: auto; left: var(--gap); }

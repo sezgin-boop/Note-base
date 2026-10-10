@@ -76,6 +76,113 @@ export function useCreateFrom() {
   return { fromFiles, fromText };
 }
 
+/**
+ * Touch navigation that works wherever the fingers land. React Flow only pans and zooms when a
+ * gesture starts on empty canvas: over a card the card's drag handler swallows the touches, and
+ * text inside cards is excluded from panning. Here two fingers always pinch-zoom, and one finger
+ * dragging over card text pans (a tap still edits the text; dragging the card elsewhere moves it).
+ */
+function useTouchNavigation(
+  ref: React.RefObject<HTMLDivElement | null>,
+  onEnd: (v: { x: number; y: number; zoom: number }) => void,
+) {
+  const rf = useReactFlow();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let start: { dist: number; mid: XYPosition; vp: { x: number; y: number; zoom: number } } | null = null;
+    // Stays on until every finger is lifted, so the finger left behind doesn't drag a card.
+    let active = false;
+    const measure = (t: TouchList) => {
+      const r = el.getBoundingClientRect();
+      const [a, b] = [t[0], t[1]];
+      return {
+        dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1,
+        mid: { x: (a.clientX + b.clientX) / 2 - r.left, y: (a.clientY + b.clientY) / 2 - r.top },
+      };
+    };
+    // One-finger pan over text, which the canvas would otherwise ignore.
+    let pan: { x: number; y: number; vp: { x: number; y: number; zoom: number }; moving: boolean } | null = null;
+    const PAN_FROM = '.react-flow__node .nodrag';
+    // Cards themselves carry "nopan"; only "nopan" parts inside a card (format bar…) opt out.
+    const NOT_FROM =
+      'button, a, select, .card .nopan, .nowheel, .react-flow__handle, .react-flow__resize-control, input[type="range"]';
+    const onStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (e.touches.length === 1 && !active) {
+        const editing = target === document.activeElement && target.matches('input, textarea');
+        pan =
+          !editing && target.closest(PAN_FROM) && !target.closest(NOT_FROM)
+            ? { x: e.touches[0].clientX, y: e.touches[0].clientY, vp: rf.getViewport(), moving: false }
+            : null;
+        return;
+      }
+      pan = null;
+      if (e.touches.length < 2) return;
+      e.preventDefault();
+      e.stopPropagation();
+      active = true;
+      start = { ...measure(e.touches), vp: rf.getViewport() };
+    };
+    const onMove = (e: TouchEvent) => {
+      if (pan && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - pan.x;
+        const dy = e.touches[0].clientY - pan.y;
+        if (!pan.moving && Math.hypot(dx, dy) < 8) return;
+        pan.moving = true;
+        e.preventDefault();
+        e.stopPropagation();
+        rf.setViewport({ ...pan.vp, x: pan.vp.x + dx, y: pan.vp.y + dy });
+        return;
+      }
+      if (!active) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!start || e.touches.length < 2) return;
+      const { dist, mid } = measure(e.touches);
+      const zoom = Math.min(3, Math.max(0.1, start.vp.zoom * (dist / start.dist)));
+      // Keep the point that was under the fingers under the fingers (and follow them as they move).
+      const fx = (start.mid.x - start.vp.x) / start.vp.zoom;
+      const fy = (start.mid.y - start.vp.y) / start.vp.zoom;
+      rf.setViewport({ x: mid.x - fx * zoom, y: mid.y - fy * zoom, zoom });
+    };
+    const onEndTouch = (e: TouchEvent) => {
+      if (pan) {
+        if (pan.moving) {
+          e.preventDefault(); // no tap → no edit mode after a pan
+          onEnd(rf.getViewport());
+        }
+        pan = null;
+      }
+      if (!active) return;
+      if (e.touches.length >= 2) {
+        start = { ...measure(e.touches), vp: rf.getViewport() };
+        return;
+      }
+      start = null;
+      if (e.touches.length === 0) {
+        active = false;
+        onEnd(rf.getViewport());
+      }
+    };
+    // Safari's own page zoom gesture.
+    const noGesture = (e: Event) => e.preventDefault();
+    const opts = { capture: true, passive: false };
+    el.addEventListener('touchstart', onStart, opts);
+    el.addEventListener('touchmove', onMove, opts);
+    el.addEventListener('touchend', onEndTouch, opts);
+    el.addEventListener('touchcancel', onEndTouch, opts);
+    el.addEventListener('gesturestart', noGesture);
+    return () => {
+      el.removeEventListener('touchstart', onStart, opts);
+      el.removeEventListener('touchmove', onMove, opts);
+      el.removeEventListener('touchend', onEndTouch, opts);
+      el.removeEventListener('touchcancel', onEndTouch, opts);
+      el.removeEventListener('gesturestart', noGesture);
+    };
+  }, [ref, rf, onEnd]);
+}
+
 export function Canvas() {
   const {
     nodes,
@@ -202,8 +309,12 @@ export function Canvas() {
     setNodes((ns) => ns.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)));
   };
 
+  const canvasRef = useRef<HTMLDivElement>(null);
+  useTouchNavigation(canvasRef, setViewport);
+
   return (
     <div
+      ref={canvasRef}
       className={`canvas ${readOnly ? 'read-only' : ''}`}
       onDragOver={(e) => {
         e.preventDefault();

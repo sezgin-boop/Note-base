@@ -18,7 +18,10 @@ It works fully without the cloud; everything is then stored only in the browser 
 
 **Canvas**
 
-- Infinite canvas: pan, zoom (⌘/Ctrl + wheel, pinch on phones), minimap, box select (Shift + drag)
+- Infinite canvas: pan, zoom (⌘/Ctrl + wheel, pinch on phones — anywhere, also over cards and text), minimap, box
+  select (Shift + drag)
+- Undo / redo buttons in the top bar (also ⌘Z / ⇧⌘Z): every change — text edits, moves, deletes, AI imports — can be
+  taken back
 - Cards: Note, List, Heading, Image, Video, Link, Scene (storyboard), Job (client, due date, fee, status), Color, Section,
   Board (boards inside boards)
 - Arrows between cards, with labels and arrowheads (right-click a connection)

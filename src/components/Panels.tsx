@@ -1,4 +1,4 @@
-import { Bot, ChevronRight, Eye, Hash, PanelLeft, Search, Share2, Sparkles, X } from 'lucide-react';
+import { Bot, ChevronRight, Eye, Hash, PanelLeft, Redo2, Search, Share2, Sparkles, Undo2, X } from 'lucide-react';
 import { boardTags } from '../tags';
 import { ExportMenu } from './Export';
 import { cloudConfigured } from '../cloud';
@@ -56,6 +56,7 @@ export function Topbar() {
           </span>
         )}
       </nav>
+      {!readOnly && <History />}
       {readOnly ? (
         <>
           <span className="badge">
@@ -88,6 +89,21 @@ export function Topbar() {
         </>
       )}
     </header>
+  );
+}
+
+/** Undo / redo, always in reach (also on phones, where the bottom dock scrolls). */
+function History() {
+  const { undo, redo, past, future } = useStore();
+  return (
+    <div className="history">
+      <button className="history-btn" disabled={!past.length} onClick={undo} title="Undo (⌘Z)" aria-label="Undo">
+        <Undo2 size={16} />
+      </button>
+      <button className="history-btn" disabled={!future.length} onClick={redo} title="Redo (⇧⌘Z)" aria-label="Redo">
+        <Redo2 size={16} />
+      </button>
+    </div>
   );
 }
 
@@ -197,8 +213,8 @@ export function SearchPalette() {
             value={q}
             onChange={(e) => (setQ(e.target.value), setSel(0))}
             onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') e.preventDefault(), setSel((s) => Math.min(s + 1, results.length - 1));
-              if (e.key === 'ArrowUp') e.preventDefault(), setSel((s) => Math.max(s - 1, 0));
+              if (e.key === 'ArrowDown') (e.preventDefault(), setSel((s) => Math.min(s + 1, results.length - 1)));
+              if (e.key === 'ArrowUp') (e.preventDefault(), setSel((s) => Math.max(s - 1, 0)));
               if (e.key === 'Enter' && results[sel]) go(results[sel]);
               if (e.key === 'Escape') setPanel(null);
             }}
