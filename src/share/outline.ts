@@ -5,6 +5,7 @@
 import { SIZES } from '../cards';
 import type { BoardContent, CardNode, CardType, ProjectStatus } from '../types';
 import { STATUS_LABELS } from '../types';
+import { stripColors } from '../richtext';
 
 export interface OutlineBoard {
   id: string;
@@ -97,8 +98,8 @@ export function cardLabel(n: CardNode, boardName?: (id: string) => string | unde
   const d = n.data;
   if (n.type === 'board') return clip(`Board: ${(d.boardId && boardName?.(d.boardId)) || 'board'}`);
   if (n.type === 'scene') {
-    const desc = firstLine(d.text);
-    return clip(`Scene ${String(d.number ?? 1).padStart(2, '0')}${desc ? `: ${desc}` : ''}`);
+    const desc = d.title || firstLine(stripColors(d.text ?? ''));
+    return clip(`${d.label || `Scene ${String(d.number ?? 1).padStart(2, '0')}`}${desc ? `: ${desc}` : ''}`);
   }
   const raw = d.title || firstLine(d.text) || d.caption || d.hex || d.url || KIND[n.type ?? 'note'];
   return clip(String(raw));
@@ -120,7 +121,11 @@ const KIND: Record<string, string> = {
 
 function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: OutlineOptions): Item | null {
   const d = n.data;
-  const lines = (s?: string) =>
+  const lines = (raw?: string) => {
+    const s = raw === undefined ? raw : stripColors(raw);
+    return _lines(s);
+  };
+  const _lines = (s?: string) =>
     (s ?? '')
       .split('\n')
       .map((l) => l.trimEnd())
@@ -200,7 +205,7 @@ function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: Outlin
       return {
         icon: '🎞️',
         kind: 'Scene',
-        title: `Scene ${String(d.number ?? 1).padStart(2, '0')}`,
+        title: `${d.label || `Scene ${String(d.number ?? 1).padStart(2, '0')}`}${d.title ? `: ${d.title}` : ''}`,
         meta: [d.shot, d.duration].filter(Boolean) as string[],
         lines: [...lines(d.text), ...(d.audio ? [`Sound: ${d.audio}`] : []), ...(d.prompt ? [`Image prompt: ${d.prompt}`] : [])],
         image: d.mediaId && opts.mediaUrl(d.mediaId) ? { url: opts.mediaUrl(d.mediaId)!, alt: 'Scene frame' } : undefined,

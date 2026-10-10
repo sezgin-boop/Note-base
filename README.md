@@ -24,6 +24,11 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Arrows between cards, with labels and arrowheads (right-click a connection)
 - Right-click menus for cards, connections and the canvas; on touch screens a selected card shows duplicate / delete / more
 - Drag & drop or paste images, videos, links and text; moving a section moves the cards inside it
+- Text formatting in notes, scenes and job notes: **bold** (⌘B), *italic* (⌘I), ~~strike~~, ==highlight== (⌘⇧H),
+  colored text, big lines and bullets — click the text to get the formatting bar. Stored as plain text with markers
+  (`**bold**`, `==highlight==`, `:red[text]`), so exports and AI tools still read it
+- Rename any card's header (double-click it, e.g. "Scene 01" → "Hook"); scenes also have a title; text size S / M / L
+  and colors from the right-click menu
 - Background: dots, grid or plain · dark, light or system theme
 
 **Video review**

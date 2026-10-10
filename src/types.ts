@@ -65,6 +65,9 @@ export interface CardData extends Record<string, unknown> {
   versions?: VideoVersion[];
   versionId?: string;
   approvals?: Approval[];
+  /** Custom header text replacing the card type ("Note", "Scene 01"…). */
+  label?: string;
+  textSize?: 'sm' | 'lg';
   // planning (any card)
   tags?: string[];
   publishDate?: string;

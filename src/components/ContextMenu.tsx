@@ -30,7 +30,10 @@ const OUTSIDE_META = new Set<CardType>(['heading', 'color', 'board']);
 import { toast } from '../ui';
 import { TOOLS } from './Toolbar';
 
-const ACCENT_TYPES = new Set<CardType>(['note', 'todo', 'frame', 'scene']);
+const ACCENT_TYPES = new Set<CardType>(['note', 'todo', 'frame', 'scene', 'heading']);
+/** Cards with the standard header, whose header text can be renamed. */
+const LABEL_TYPES = new Set<CardType>(['note', 'todo', 'image', 'video', 'link', 'scene', 'project']);
+const TEXT_TYPES = new Set<CardType>(['note', 'todo', 'scene', 'project', 'link']);
 
 function Item({
   icon: Icon,
@@ -138,6 +141,16 @@ export function ContextMenu() {
         )}
         {!ro && <Item icon={Copy} label="Duplicate" kbd="⌘D" onClick={s.duplicateSelected} />}
         {!ro && !many && <Item icon={CalendarDays} label="Schedule & tags…" onClick={() => s.openDetails(node.id)} />}
+        {!ro && !many && LABEL_TYPES.has(node.type as CardType) && (
+          <Item
+            icon={Pencil}
+            label="Rename header…"
+            onClick={() => {
+              const label = prompt('Card header (leave empty for the default)', node.data.label ?? '');
+              if (label !== null) s.updateData(node.id, { label: label.trim() || undefined });
+            }}
+          />
+        )}
         {!ro && !many && (node.type === 'image' || node.type === 'scene') && (node.data.mediaId || node.data.url) && (
           <Item icon={Pipette} label="Extract color palette" onClick={() => addPaletteFor(node)} />
         )}
@@ -163,6 +176,28 @@ export function ContextMenu() {
                 }}
               />
             ))}
+          </div>
+        )}
+        {!ro && selected.every((n) => TEXT_TYPES.has(n.type as CardType)) && (
+          <div className="menu-row">
+            <span>Text size</span>
+            <div className="seg menu-seg">
+              {(
+                [
+                  ['sm', 'S'],
+                  [undefined, 'M'],
+                  ['lg', 'L'],
+                ] as const
+              ).map(([v, l]) => (
+                <button
+                  key={l}
+                  className={node.data.textSize === v ? 'on' : ''}
+                  onClick={() => s.patchSelected((n) => ({ ...n, data: { ...n.data, textSize: v } }))}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {!ro && (

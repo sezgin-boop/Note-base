@@ -18,8 +18,8 @@ fenced code block tagged \`notebase\` containing JSON in this shape:
 {
   "section": "Storyboard v2",
   "cards": [
-    { "id": "s1", "type": "scene", "number": 1, "shot": "Close-up", "duration": "3s",
-      "text": "What happens in the shot", "audio": "VO / music / SFX", "prompt": "Image-generator prompt for this frame" },
+    { "id": "s1", "type": "scene", "number": 1, "label": "Hook", "title": "Cold open", "shot": "Close-up", "duration": "3s",
+      "text": "What happens in the shot, **key moment** in bold", "audio": "VO / music / SFX", "prompt": "Image-generator prompt for this frame" },
     { "id": "s2", "type": "scene", "number": 2, "shot": "Wide", "duration": "6s", "text": "…", "audio": "…" },
     { "id": "n1", "type": "note", "title": "Hook ideas", "text": "Line one\\nLine two", "color": "#f59e0b", "tags": ["hook"] },
     { "type": "todo", "title": "Shot list", "items": ["Gimbal", "ND filters"] },
@@ -31,6 +31,10 @@ fenced code block tagged \`notebase\` containing JSON in this shape:
   "links": [["s1", "s2"], { "from": "n1", "to": "s1", "label": "opens with" }]
 }
 \`\`\`
+
+Text fields (text, audio, note text) may use light formatting: **bold**, *italic*, ==highlight==, ~~strike~~,
+colored text like :red[this] (red, orange, yellow, green, blue, purple, pink, gray), "# " for a big line and "- " for bullets.
+"label" (any card) replaces the small header above the card, e.g. "Hook" instead of "Scene 01"; scenes can also have a "title".
 
 Rules: "type" is one of scene, note, todo, heading, link, video, image, color, project. Scene "shot" is usually one of
 Wide, Medium, Close-up, Extreme close-up, Insert, POV, Drone, B-roll. Any card may also have "tags" (array),
@@ -152,8 +156,16 @@ export function parseImport(text: string): ParsedImport {
         data.status = (STATUSES.has(str(c.status) ?? '') ? str(c.status) : 'brief') as ProjectStatus;
         break;
     }
+    const label = str(c.label, 60);
+    if (label) data.label = label;
+    if (type === 'scene' && str(c.title)) data.title = str(c.title, 120);
     const color = str(c.color, 9);
-    if (color && /^#[0-9a-f]{3,8}$/i.test(color) && (type === 'note' || type === 'todo' || type === 'scene')) data.color = color;
+    if (
+      color &&
+      /^#[0-9a-f]{3,8}$/i.test(color) &&
+      (type === 'note' || type === 'todo' || type === 'scene' || type === 'heading')
+    )
+      data.color = color;
     if (Array.isArray(c.tags))
       data.tags = c.tags
         .filter((t) => typeof t === 'string')

@@ -8,7 +8,7 @@ import type { CardNode, ProjectStatus } from '../types';
 import { SHOT_TYPES, STATUS_COLORS, STATUS_LABELS } from '../types';
 import { AccentPicker } from './TextNodes';
 import { pickFile } from './MediaNodes';
-import { AutoText, Handles, Shell, useAutoFocus } from './Shell';
+import { AutoText, Handles, RichText, Shell, useAutoFocus } from './Shell';
 
 export function daysLeft(deadline?: string) {
   if (!deadline) return null;
@@ -41,6 +41,12 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
       resizable="width"
       minWidth={200}
     >
+      <input
+        className="nodrag card-title-input"
+        value={data.title ?? ''}
+        placeholder="Title (e.g. Hook)"
+        onChange={(e) => updateData(id, { title: e.target.value })}
+      />
       <div className="scene-thumb nodrag" onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}>
         {src ? (
           <img src={src} alt="" draggable={false} />
@@ -72,10 +78,10 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
           onChange={(e) => updateData(id, { duration: e.target.value })}
         />
       </div>
-      <AutoText value={data.text ?? ''} placeholder="What happens?" onChange={(text) => updateData(id, { text })} />
+      <RichText value={data.text ?? ''} placeholder="What happens?" onChange={(text) => updateData(id, { text })} />
       <div className="scene-audio">
         <Volume2 size={13} />
-        <AutoText value={data.audio ?? ''} placeholder="Sound / music / VO" onChange={(audio) => updateData(id, { audio })} />
+        <RichText value={data.audio ?? ''} placeholder="Sound / music / VO" onChange={(audio) => updateData(id, { audio })} />
       </div>
       {data.prompt !== undefined ? (
         <div className="scene-prompt">
@@ -171,7 +177,7 @@ export function ProjectNode({ id, data, selected }: NodeProps<CardNode>) {
           onChange={(e) => updateData(id, { fee: e.target.value })}
         />
       </div>
-      <AutoText value={data.text ?? ''} placeholder="Notes" onChange={(text) => updateData(id, { text })} />
+      <RichText value={data.text ?? ''} placeholder="Notes" onChange={(text) => updateData(id, { text })} />
     </Shell>
   );
 }

@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 import { takeFocus, useStore } from '../store';
 import type { CardNode, TodoItem } from '../types';
 import { ACCENTS } from '../types';
-import { AutoText, Handles, Shell, useAutoFocus } from './Shell';
+import { AutoText, Handles, RichText, Shell, useAutoFocus } from './Shell';
 
 export function AccentPicker({ id, value }: { id: string; value?: string }) {
   const updateData = useStore((s) => s.updateData);
@@ -43,7 +43,7 @@ export function NoteNode({ id, data, selected }: NodeProps<CardNode>) {
         placeholder="Title"
         onChange={(e) => updateData(id, { title: e.target.value })}
       />
-      <AutoText
+      <RichText
         autoFocus={focus}
         value={data.text ?? ''}
         placeholder="Write something…"
@@ -57,7 +57,7 @@ export function HeadingNode({ id, data, selected }: NodeProps<CardNode>) {
   const updateData = useStore((s) => s.updateData);
   const [focus] = useState(() => takeFocus(id));
   return (
-    <div className={`heading-card ${selected ? 'is-selected' : ''}`}>
+    <div className={`heading-card ${selected ? 'is-selected' : ''}`} style={data.color ? { color: data.color } : undefined}>
       <AutoText
         autoFocus={focus}
         className="heading-text"

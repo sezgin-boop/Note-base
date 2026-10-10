@@ -1,6 +1,9 @@
 import { Handle, NodeResizeControl, NodeResizer, Position, ResizeControlVariant } from '@xyflow/react';
 import type { ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
+import { Heading, Highlighter, List } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { renderRich, TEXT_COLORS, toggleLinePrefix, wrapSelection } from '../richtext';
+import { useStore } from '../store';
 import { CardMeta, useCardNode } from './meta';
 
 const HANDLES: [string, Position][] = [
@@ -49,7 +52,7 @@ export function Shell({
   const node = useCardNode();
   return (
     <div
-      className={`card ${className} ${selected ? 'is-selected' : ''}`}
+      className={`card ${className} ${selected ? 'is-selected' : ''} ${node?.data.textSize ? `ts-${node.data.textSize}` : ''}`}
       style={color ? ({ '--accent': color } as React.CSSProperties) : undefined}
     >
       {resizable === 'width' &&
@@ -75,7 +78,7 @@ export function Shell({
       )}
       <div className="card-label">
         <span className="card-label-icon">{icon}</span>
-        <span className="card-label-text">{label}</span>
+        <CardLabel fallback={label} />
         <span className="card-actions">{actions}</span>
       </div>
       <div className="card-body">
@@ -90,8 +93,13 @@ export function Shell({
 /**
  * Focus a field of a freshly created card. React Flow keeps new nodes hidden until they
  * are measured, and hidden elements can't take focus, so retry for a few frames.
+ * `selectAll` selects the existing text (new cards); otherwise the caret goes to the end.
  */
-export function useAutoFocus(ref: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>, enabled?: boolean) {
+export function useAutoFocus(
+  ref: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>,
+  enabled?: boolean,
+  selectAll = true,
+) {
   useEffect(() => {
     if (!enabled) return;
     let tries = 0;
@@ -99,12 +107,28 @@ export function useAutoFocus(ref: React.RefObject<HTMLInputElement | HTMLTextAre
     const attempt = () => {
       const el = ref.current;
       el?.focus({ preventScroll: true });
-      if (el && document.activeElement === el) return el.select();
+      if (el && document.activeElement === el) {
+        if (selectAll) el.select();
+        else el.setSelectionRange(el.value.length, el.value.length);
+        return;
+      }
       if (++tries < 20) raf = requestAnimationFrame(attempt);
     };
     attempt();
     return () => cancelAnimationFrame(raf);
-  }, [enabled, ref]);
+  }, [enabled, ref, selectAll]);
+}
+
+interface AutoTextProps {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+  autoFocus?: boolean;
+  selectAll?: boolean;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  onBlur?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 }
 
 /**
@@ -117,21 +141,20 @@ export function AutoText({
   placeholder,
   className = '',
   autoFocus,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  className?: string;
-  autoFocus?: boolean;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useAutoFocus(ref, autoFocus);
+  selectAll,
+  textareaRef,
+  onBlur,
+  onKeyDown,
+}: AutoTextProps) {
+  const own = useRef<HTMLTextAreaElement>(null);
+  const ref = textareaRef ?? own;
+  useAutoFocus(ref, autoFocus, selectAll);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = '0px';
     el.style.height = `${el.scrollHeight}px`;
-  }, [value]);
+  }, [value, ref]);
   return (
     <textarea
       ref={ref}
@@ -140,6 +163,162 @@ export function AutoText({
       placeholder={placeholder}
       rows={1}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      onKeyDown={onKeyDown}
     />
+  );
+}
+
+const FORMATS: { label: ReactNode; title: string; apply: (el: HTMLTextAreaElement) => ReturnType<typeof wrapSelection> }[] = [
+  { label: <b>B</b>, title: 'Bold (⌘B)', apply: (el) => wrapSelection(el, '**') },
+  { label: <i>I</i>, title: 'Italic (⌘I)', apply: (el) => wrapSelection(el, '*') },
+  { label: <s>S</s>, title: 'Strikethrough', apply: (el) => wrapSelection(el, '~~') },
+  { label: <Highlighter size={13} />, title: 'Highlight (⌘⇧H)', apply: (el) => wrapSelection(el, '==') },
+  { label: <Heading size={13} />, title: 'Big line', apply: (el) => toggleLinePrefix(el, '# ') },
+  { label: <List size={13} />, title: 'Bullet list', apply: (el) => toggleLinePrefix(el, '- ') },
+];
+
+/** Formatting bar shown above a text field while it's being edited. */
+function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaElement | null>; onChange: (v: string) => void }) {
+  const run = (fn: (el: HTMLTextAreaElement) => { next: string; start: number; end: number }) => {
+    const el = target.current;
+    if (!el) return;
+    const { next, start, end } = fn(el);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start, end);
+    });
+  };
+  // mousedown + preventDefault keeps the text selection and focus in the field.
+  const btn = (key: string, title: string, label: ReactNode, fn: Parameters<typeof run>[0], extra?: React.CSSProperties) => (
+    <button key={key} className="fmt-btn" title={title} style={extra} onMouseDown={(e) => (e.preventDefault(), run(fn))}>
+      {label}
+    </button>
+  );
+  return (
+    <div className="format-bar nodrag nopan" onMouseDown={(e) => e.preventDefault()}>
+      {FORMATS.map((f, i) => btn(String(i), f.title, f.label, f.apply))}
+      <span className="fmt-sep" />
+      {Object.entries(TEXT_COLORS).map(([name, c]) =>
+        btn(name, `${name[0].toUpperCase()}${name.slice(1)} text`, <span className="fmt-dot" style={{ background: c }} />, (el) =>
+          wrapSelection(el, `:${name}[`, ']'),
+        ),
+      )}
+    </div>
+  );
+}
+
+/**
+ * Text with light formatting (bold, italic, highlight, colors, big lines, bullets). Shows the
+ * formatted result; click to edit the plain text with a formatting bar.
+ */
+export function RichText({
+  value,
+  onChange,
+  placeholder,
+  className = '',
+  autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+  autoFocus?: boolean;
+}) {
+  const readOnly = useStore((s) => s.readOnly);
+  const [editing, setEditing] = useState(!!autoFocus);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const html = useMemo(() => (value ? renderRich(value) : ''), [value]);
+
+  if (!editing || readOnly) {
+    return (
+      <div
+        className={`rich-view ${readOnly ? '' : 'nodrag'} ${className} ${value ? '' : 'empty'}`}
+        data-placeholder={placeholder}
+        onClick={(e) => {
+          if (readOnly || (e.target as HTMLElement).closest('a')) return;
+          setEditing(true);
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
+  }
+
+  const shortcut = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const mod = e.metaKey || e.ctrlKey;
+    const el = e.currentTarget;
+    const fn = !mod
+      ? null
+      : e.key.toLowerCase() === 'b'
+        ? () => wrapSelection(el, '**')
+        : e.key.toLowerCase() === 'i'
+          ? () => wrapSelection(el, '*')
+          : e.shiftKey && e.key.toLowerCase() === 'h'
+            ? () => wrapSelection(el, '==')
+            : null;
+    if (!fn) return;
+    e.preventDefault();
+    const { next, start, end } = fn();
+    onChange(next);
+    requestAnimationFrame(() => el.setSelectionRange(start, end));
+  };
+
+  return (
+    <div className="rich-edit">
+      <FormatBar target={ref} onChange={onChange} />
+      <AutoText
+        textareaRef={ref}
+        className={className}
+        value={value}
+        placeholder={placeholder}
+        autoFocus
+        selectAll={false}
+        onChange={onChange}
+        onBlur={() => setEditing(false)}
+        onKeyDown={shortcut}
+      />
+    </div>
+  );
+}
+
+/** Card header text: the card type by default, renamable with a double-click (e.g. "Scene 01" → "Hook"). */
+function CardLabel({ fallback }: { fallback: string }) {
+  const node = useCardNode();
+  const readOnly = useStore((s) => s.readOnly);
+  const updateData = useStore((s) => s.updateData);
+  const [editing, setEditing] = useState(false);
+  const label = node?.data.label || fallback;
+  if (editing && node) {
+    return (
+      <input
+        autoFocus
+        className="nodrag card-label-input"
+        defaultValue={node.data.label ?? ''}
+        placeholder={fallback}
+        onFocus={(e) => e.target.select()}
+        onBlur={(e) => {
+          updateData(node.id, { label: e.target.value.trim() || undefined });
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+      />
+    );
+  }
+  return (
+    <span
+      className={`card-label-text ${node?.data.label ? 'custom' : ''}`}
+      title={readOnly ? undefined : 'Double-click to rename'}
+      onDoubleClick={(e) => {
+        if (readOnly || !node) return;
+        e.stopPropagation();
+        setEditing(true);
+      }}
+    >
+      {label}
+    </span>
   );
 }
