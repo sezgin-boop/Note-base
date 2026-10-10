@@ -24,7 +24,12 @@ export function applyTheme(theme: Theme, palette: Palette) {
   // Mixed colors compute as color(srgb r g b); the browser bar wants a plain rgb().
   const bg = getComputedStyle(root).backgroundColor;
   const m = bg.match(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/);
-  const rgb = m ? `rgb(${m.slice(1, 4).map((v) => Math.round(Number(v) * 255)).join(', ')})` : bg;
+  const rgb = m
+    ? `rgb(${m
+        .slice(1, 4)
+        .map((v) => Math.round(Number(v) * 255))
+        .join(', ')})`
+    : bg;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', rgb);
 }
 
