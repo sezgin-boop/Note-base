@@ -25,6 +25,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
 import { addPaletteFor } from '../palette';
+import { DRAW_COLORS, DRAW_SIZES, paint } from '../draw';
 import { SECTION_LOOKS } from '../sections';
 import { copiedSkin, copySkin, SKIN_TYPES } from './StylePanel';
 import { cardLabel } from '../share/outline';
@@ -134,6 +135,7 @@ export function ContextMenu() {
     const showAccent = selected.every((n) => ACCENT_TYPES.has(n.type as CardType));
     const frames = (selected.length ? selected : [node]).filter((n) => n.type === 'frame');
     const folded = frames.some((f) => f.data.collapsed);
+    const drawings = (selected.length ? selected : [node]).every((n) => n.type === 'draw');
     const onlyFrames = frames.length > 0 && frames.length === (selected.length || 1);
     const scenes = (selected.length ? selected : [node]).filter((n) => n.type === 'scene');
     const framesHidden = scenes.length > 0 && scenes.every((n) => n.data.hideFrame);
@@ -242,6 +244,38 @@ export function ContextMenu() {
               />
             ))}
           </div>
+        )}
+        {!ro && drawings && (
+          <>
+            <div className="menu-colors">
+              {DRAW_COLORS.map((c) => (
+                <button
+                  key={c}
+                  className="accent-dot"
+                  style={{ background: paint(c) }}
+                  title={c === 'ink' ? 'Ink' : c}
+                  onClick={() => {
+                    s.patchSelected((n) => (n.type === 'draw' ? { ...n, data: { ...n.data, stroke: c } } : n));
+                    s.setMenu(null);
+                  }}
+                />
+              ))}
+            </div>
+            <div className="menu-row">
+              <span>{node.data.shape === 'text' ? 'Text size' : 'Thickness'}</span>
+              <div className="seg menu-seg">
+                {DRAW_SIZES.map((sz, i) => (
+                  <button
+                    key={sz}
+                    className={node.data.size === sz ? 'on' : ''}
+                    onClick={() => s.patchSelected((n) => (n.type === 'draw' ? { ...n, data: { ...n.data, size: sz } } : n))}
+                  >
+                    {['S', 'M', 'L'][i]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
         {!ro && onlyFrames && (
           <>

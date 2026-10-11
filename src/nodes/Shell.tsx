@@ -142,6 +142,7 @@ interface AutoTextProps {
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   id?: string;
+  style?: React.CSSProperties;
 }
 
 /**
@@ -160,6 +161,7 @@ export function AutoText({
   onKeyDown,
   onPaste,
   id,
+  style,
 }: AutoTextProps) {
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = textareaRef ?? own;
@@ -188,6 +190,7 @@ export function AutoText({
     <textarea
       ref={ref}
       id={id}
+      style={style}
       className={`nodrag autotext ${className}`}
       value={value}
       placeholder={placeholder}

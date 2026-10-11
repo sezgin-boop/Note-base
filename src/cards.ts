@@ -28,6 +28,7 @@ const DEFAULTS: Record<CardType, () => CardData> = {
   scene: () => ({ number: 1, shot: 'Medium', duration: '3s', text: '', audio: '' }),
   project: () => ({ title: 'New job', client: '', deadline: '', fee: '', status: 'brief', text: '' }),
   color: () => ({ hex: '#a78bfa', title: 'Color' }),
+  draw: () => ({ shape: 'pen', points: [], stroke: 'ink', size: 4 }),
 };
 
 /** Cards whose height follows their content; only their width is user-resizable. */

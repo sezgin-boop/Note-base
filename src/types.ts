@@ -12,7 +12,8 @@ export type CardType =
   | 'frame'
   | 'scene'
   | 'project'
-  | 'color';
+  | 'color'
+  | 'draw';
 
 export interface TodoItem {
   id: string;
@@ -66,6 +67,14 @@ export interface CardData extends Record<string, unknown> {
   versions?: VideoVersion[];
   versionId?: string;
   approvals?: Approval[];
+  // drawing (pen strokes, lines, arrows, shapes, free text)
+  shape?: 'pen' | 'marker' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text';
+  /** x, y pairs relative to the card, in a w × h box (the card may be resized: it scales). */
+  points?: number[];
+  w?: number;
+  h?: number;
+  stroke?: string;
+  size?: number;
   /** Cards uploaded through the same upload link (they line up together). */
   batch?: string;
   /** Card style: a preset, a color / gradient or a picture as the whole card's background. */

@@ -37,7 +37,7 @@ create table if not exists public.comments (
   done boolean not null default false
 );
 alter table public.comments add column if not exists version text;
--- 'comment' or 'approval' (a client approving a video version).
+-- 'comment', 'approval' (a client approving a video version) or 'markup' (a client's drawing).
 alter table public.comments add column if not exists kind text not null default 'comment';
 alter table public.comments alter column author set default 'Guest';
 create index if not exists comments_board_idx on public.comments (board_id);
@@ -105,11 +105,12 @@ begin
   if p_board not in (select id from public.shared_board_ids(p_share)) then
     raise exception 'board is not part of this share';
   end if;
-  if p_kind not in ('comment', 'approval') then
+  -- markup: shapes a client drew on the board (JSON, so it may be longer than a comment)
+  if p_kind not in ('comment', 'approval', 'markup') then
     raise exception 'unknown kind';
   end if;
-  if coalesce(length(trim(p_body)), 0) = 0 or length(p_body) > 2000 then
-    raise exception 'comment must be 1-2000 characters';
+  if coalesce(length(trim(p_body)), 0) = 0 or length(p_body) > (case when p_kind = 'markup' then 50000 else 2000 end) then
+    raise exception 'comment is empty or too long';
   end if;
   insert into public.comments (board_id, node_id, t, author, body, version, kind)
   values (p_board, left(p_node, 64), p_t, left(coalesce(nullif(trim(p_author), ''), 'Guest'), 60), p_body,

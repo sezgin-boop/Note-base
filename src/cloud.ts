@@ -27,7 +27,8 @@ export interface RemoteComment {
   done: boolean;
   /** Video version id; null for comments made before versions existed (= first version). */
   version: string | null;
-  kind: 'comment' | 'approval';
+  /** markup: shapes a client drew on the board (body is JSON, see draw.ts). */
+  kind: 'comment' | 'approval' | 'markup';
 }
 
 export interface SharedBundle {
@@ -53,7 +54,7 @@ export async function addSharedComment(
     author: string;
     body: string;
     version?: string;
-    kind?: 'comment' | 'approval';
+    kind?: 'comment' | 'approval' | 'markup';
   },
 ): Promise<string> {
   if (!supabase) throw new Error('Cloud is not set up');
@@ -66,7 +67,7 @@ export async function addSharedComment(
     p_body: c.body,
     // Only sent when needed, so plain comments keep working on databases set up before versions.
     ...(c.version && c.version !== 'v1' ? { p_version: c.version } : {}),
-    ...(c.kind === 'approval' ? { p_kind: 'approval' } : {}),
+    ...(c.kind && c.kind !== 'comment' ? { p_kind: c.kind } : {}),
   });
   if (error) throw error;
   return data as string;
@@ -82,5 +83,5 @@ export const toRemoteComment = (r: any): RemoteComment => ({
   createdAt: r.created_at ?? r.createdAt,
   done: r.done,
   version: r.version ?? null,
-  kind: r.kind === 'approval' ? 'approval' : 'comment',
+  kind: r.kind === 'approval' || r.kind === 'markup' ? r.kind : 'comment',
 });

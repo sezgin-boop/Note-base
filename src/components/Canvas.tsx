@@ -21,6 +21,9 @@ import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
 import { SELECTION, useStore } from '../store';
 import { dropTargetAt, highlightSlot, pointOf, settleSlot } from './dropTargets';
+import { useDraw } from '../draw';
+import { DrawNode } from '../nodes/DrawNode';
+import { DrawOverlay, useDrawInput } from './DrawLayer';
 import { ContextMenu, withCardActions } from './ContextMenu';
 import type { CardNode, CardType } from '../types';
 
@@ -37,6 +40,7 @@ const nodeTypes = Object.fromEntries(
     scene: SceneNode,
     project: ProjectNode,
     color: ColorNode,
+    draw: DrawNode,
   }).map(([k, C]) => [k, withCardActions(C)]),
 ) as NodeTypes;
 
@@ -113,7 +117,7 @@ function useTouchNavigation(
       if (e.touches.length === 1 && !active) {
         const editing = target === document.activeElement && target.matches('input, textarea');
         pan =
-          !editing && target.closest(PAN_FROM) && !target.closest(NOT_FROM)
+          !editing && !useDraw.getState().tool && target.closest(PAN_FROM) && !target.closest(NOT_FROM)
             ? { x: e.touches[0].clientX, y: e.touches[0].clientY, vp: rf.getViewport(), moving: false }
             : null;
         return;
@@ -403,11 +407,13 @@ export function Canvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const phone = useMemo(() => matchMedia('(max-width: 720px), (pointer: coarse)').matches, []);
   useTouchNavigation(canvasRef, setViewport);
+  useDrawInput(canvasRef);
+  const drawTool = useDraw((s) => s.tool);
 
   return (
     <div
       ref={canvasRef}
-      className={`canvas ${readOnly ? 'read-only' : ''}`}
+      className={`canvas ${readOnly ? 'read-only' : ''} ${drawTool ? `drawing tool-${drawTool}` : ''}`}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
@@ -467,8 +473,10 @@ export function Canvas() {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, kind: 'pane', at: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
         }}
-        nodesDraggable={!readOnly}
-        nodesConnectable={!readOnly}
+        nodesDraggable={!readOnly && !drawTool}
+        nodesConnectable={!readOnly && !drawTool}
+        elementsSelectable={!drawTool}
+        panOnDrag={!drawTool}
         edgesReconnectable={!readOnly}
         defaultViewport={viewport}
         fitView={!viewport}
@@ -488,6 +496,7 @@ export function Canvas() {
         defaultEdgeOptions={{ type: 'default', interactionWidth: 20 }}
         proOptions={{ hideAttribution: true }}
       >
+        <DrawOverlay />
         {background === 'dots' && <Background variant={BackgroundVariant.Dots} gap={22} size={1.7} color="var(--dots)" />}
         {background === 'grid' && <Background variant={BackgroundVariant.Lines} gap={32} lineWidth={1} color="var(--grid)" />}
         <MiniMap

@@ -26,6 +26,9 @@ It works fully without the cloud; everything is then stored only in the browser 
   Board (boards inside boards)
 - Arrows between cards, with labels and arrowheads (right-click a connection)
 - Right-click menus for cards, connections and the canvas; on touch screens a selected card shows duplicate / delete / more
+- Draw (✏️ in the toolbar, or P): pen, highlighter, line, arrow, rectangle, ellipse, text and eraser, in 8 colors and 3
+  sizes — over cards too. Shift snaps lines to 15° and shapes to squares / circles. Drawings are cards: move, resize,
+  recolor (right-click), delete and undo them; they sync like everything else
 - Drag & drop or paste images, videos, links and text; moving a section moves the cards inside it
 - Drop a picture onto a scene's frame (or an empty image card) to put it there — a file from your computer, a picture
   from a website, or an image card already on the board (it moves into the frame)
@@ -48,6 +51,8 @@ It works fully without the cloud; everything is then stored only in the browser 
 
 - Timestamped comments on uploaded videos, YouTube and Vimeo — click a comment to jump to that moment
 - Versions: upload V2, V3… on the same card; every version keeps its own comments
+- Clients can **mark up** a shared board (pen, arrows, shapes, text notes) and send it; you see their marks with their
+  name and keep them as drawings or clear them (run `supabase/schema.sql` again once to allow this)
 - Clients approve a version from the share link; the job card linked to the video (or the board's only job) moves to
   **Delivered** automatically
 - Grab the paused frame of a video as an image card

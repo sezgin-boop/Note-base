@@ -11,7 +11,9 @@ import {
   Square,
   StickyNote,
   Video,
+  PencilLine,
 } from 'lucide-react';
+import { useDraw } from '../draw';
 import { addTyped } from '../actions';
 import type { CardType } from '../types';
 
@@ -41,6 +43,8 @@ export function useAddAtCenter() {
 
 export function Toolbar() {
   const addAtCenter = useAddAtCenter();
+  const drawTool = useDraw((s) => s.tool);
+  const setTool = useDraw((s) => s.setTool);
   return (
     <div className="toolbar">
       {TOOLS.map((t, i) => (
@@ -62,6 +66,13 @@ export function Toolbar() {
           </button>
         </span>
       ))}
+      <span className="tool-sep" />
+      <button className={`tool ${drawTool ? 'on' : ''}`} onClick={() => setTool(drawTool ? null : 'pen')}>
+        <PencilLine size={17} />
+        <span className="tip">
+          Draw <kbd>P</kbd>
+        </span>
+      </button>
     </div>
   );
 }

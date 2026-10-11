@@ -287,7 +287,7 @@ function OpenSection({ id, data, selected }: NodeProps<CardNode>) {
       actions={selected && <AccentPicker id={id} value={data.color} />}
     >
       <div className="frame-head">
-        <button className="frame-toggle nodrag" title="Collapse section" onClick={() => toggleSections([id], false)}>
+        <button className="frame-toggle nodrag allow" title="Collapse section" onClick={() => toggleSections([id], false)}>
           <ChevronDown size={17} />
         </button>
         {data.icon && (
@@ -334,7 +334,7 @@ function CollapsedSection({ id, data, selected }: NodeProps<CardNode>) {
       style={data.color ? ({ '--accent': data.color } as React.CSSProperties) : undefined}
       onDoubleClick={open}
     >
-      <button className="frame-toggle nodrag" title="Expand section" onClick={open}>
+      <button className="frame-toggle nodrag allow" title="Expand section" onClick={open}>
         <ChevronDown size={17} />
       </button>
       <span className="section-icon">{data.icon ?? <LayoutDashboard size={16} />}</span>

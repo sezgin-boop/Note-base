@@ -1,3 +1,5 @@
+import { DrawToolbar, MarkupBar } from './components/DrawLayer';
+import { useDraw } from './draw';
 import { applyTheme } from './components/ThemePicker';
 import { StylePanel } from './components/StylePanel';
 import { ReactFlowProvider } from '@xyflow/react';
@@ -53,6 +55,7 @@ function Shortcuts() {
         if (frames.length) return (e.preventDefault(), s.toggleSections(frames.map((f) => f.id)));
       }
       if (key === 'q') return (e.preventDefault(), s.setPanel('capture'));
+      if (key === 'p' && !useDraw.getState().tool) return (e.preventDefault(), useDraw.getState().setTool('pen'));
       if (key === 'a') return (e.preventDefault(), s.setPanel('ai'));
       const tool = TOOLS.find((t) => t.key.toLowerCase() === key);
       if (tool) {
@@ -158,7 +161,7 @@ export default function App() {
 
   return (
     <ReactFlowProvider>
-      <div className={`app ${sidebar ? '' : 'no-sidebar'}`}>
+      <div className={`app ${sidebar ? '' : 'no-sidebar'} ${readOnly ? 'read-only' : ''}`}>
         {sidebar && <Sidebar />}
         {(sidebar || panel === 'jobs') && (
           <div className="side-backdrop" onClick={() => (panel === 'jobs' ? setPanel(null) : toggleSidebar())} />
@@ -167,6 +170,8 @@ export default function App() {
           <Topbar />
           <Canvas />
           {!readOnly && <Toolbar />}
+          <DrawToolbar />
+          <MarkupBar />
           {!readOnly && (
             <button className="fab" title="Quick capture" onClick={() => setPanel('capture')}>
               <Zap size={20} />
