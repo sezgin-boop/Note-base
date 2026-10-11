@@ -79,7 +79,7 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
             className="scene-thumb nodrag"
             data-drop-target={id}
             data-drop-kind="image"
-            onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}
+            onClick={() => (src ? setLightbox({ src, kind: 'image', photos: g.list, index: g.index }) : upload())}
           >
             {src ? (
               preview && (

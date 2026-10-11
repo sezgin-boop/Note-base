@@ -355,16 +355,4 @@ function JobRow({ board, node, onClick }: { board: BoardMeta; node: CardNode; on
   );
 }
 
-export function Lightbox() {
-  const { lightbox, setLightbox } = useStore();
-  if (!lightbox) return null;
-  return (
-    <div className="overlay lightbox" onClick={() => setLightbox(null)}>
-      {lightbox.kind === 'image' ? (
-        <img src={lightbox.src} alt="" />
-      ) : (
-        <video src={lightbox.src} controls autoPlay onClick={(e) => e.stopPropagation()} />
-      )}
-    </div>
-  );
-}
+export { Lightbox } from './Lightbox';

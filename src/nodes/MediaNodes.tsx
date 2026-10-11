@@ -137,7 +137,11 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
             </button>
           )}
           {src && (
-            <button className="nodrag icon-btn" title="Enlarge" onClick={() => setLightbox({ src, kind: 'image' })}>
+            <button
+              className="nodrag icon-btn"
+              title="Enlarge"
+              onClick={() => setLightbox({ src, kind: 'image', photos: g.list, index: g.index })}
+            >
               <Maximize2 size={12} />
             </button>
           )}
@@ -150,7 +154,7 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
             className="media-frame gallery"
             data-drop-target={id}
             data-drop-kind="image"
-            onDoubleClick={() => src && setLightbox({ src, kind: 'image' })}
+            onDoubleClick={() => src && setLightbox({ src, kind: 'image', photos: g.list, index: g.index })}
           >
             <Photo key={`${g.index}:${g.current?.mediaId ?? g.current?.url}`} id={id} photo={g.current} dir={g.dir} />
             <GalleryNav count={g.count} index={g.index} go={g.go} />

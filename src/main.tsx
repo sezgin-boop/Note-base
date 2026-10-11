@@ -25,6 +25,14 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   );
 }
 
+// The page itself never zooms. iOS ignores maximum-scale=1, and a pinch outside the board (on a
+// photo, a panel…) would blow up the whole app and push its bars off screen. The board and the
+// photo viewer handle pinches themselves.
+const noPageZoom = (e: Event) => e.preventDefault();
+document.addEventListener('gesturestart', noPageZoom, { passive: false });
+document.addEventListener('gesturechange', noPageZoom, { passive: false });
+document.addEventListener('touchmove', (e) => e.touches.length > 1 && e.preventDefault(), { passive: false });
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

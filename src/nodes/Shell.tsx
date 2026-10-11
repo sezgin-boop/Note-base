@@ -143,6 +143,8 @@ export function useAutoFocus(
   ref: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>,
   enabled?: boolean,
   selectAll = true,
+  /** Where to put the caret (defaults to the end). */
+  caret?: number,
 ) {
   useEffect(() => {
     if (!enabled) return;
@@ -153,14 +155,17 @@ export function useAutoFocus(
       el?.focus({ preventScroll: true });
       if (el && document.activeElement === el) {
         if (selectAll) el.select();
-        else el.setSelectionRange(el.value.length, el.value.length);
+        else {
+          const at = Math.min(caret ?? el.value.length, el.value.length);
+          el.setSelectionRange(at, at);
+        }
         return;
       }
       if (++tries < 20) raf = requestAnimationFrame(attempt);
     };
     attempt();
     return () => cancelAnimationFrame(raf);
-  }, [enabled, ref, selectAll]);
+  }, [enabled, ref, selectAll, caret]);
 }
 
 interface AutoTextProps {
@@ -170,6 +175,7 @@ interface AutoTextProps {
   className?: string;
   autoFocus?: boolean;
   selectAll?: boolean;
+  caret?: number;
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   onBlur?: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -189,6 +195,7 @@ export function AutoText({
   className = '',
   autoFocus,
   selectAll,
+  caret,
   textareaRef,
   onBlur,
   onKeyDown,
@@ -198,7 +205,7 @@ export function AutoText({
 }: AutoTextProps) {
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = textareaRef ?? own;
-  useAutoFocus(ref, autoFocus, selectAll);
+  useAutoFocus(ref, autoFocus, selectAll, caret);
   // Text size changes re-fit the height too.
   const textSize = useCardNode()?.data.textSize;
   const fontSize = style?.fontSize;
@@ -311,6 +318,37 @@ function TextSizeButtons() {
 }
 
 /**
+ * The position in the plain text (with its **, ==, # … marks) of the point clicked in its formatted
+ * view. The shown text is the plain text minus the marks, so its characters are found in order.
+ */
+function caretFromClick(view: HTMLElement, raw: string, x: number, y: number): number | undefined {
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+  let node: Node | null = null;
+  let offset = 0;
+  if (doc.caretPositionFromPoint) {
+    const p = doc.caretPositionFromPoint(x, y);
+    if (p) [node, offset] = [p.offsetNode, p.offset];
+  } else if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) [node, offset] = [r.startContainer, r.startOffset];
+  }
+  if (!node || !view.contains(node)) return undefined;
+  const range = document.createRange();
+  range.setStart(view, 0);
+  range.setEnd(node, offset);
+  const before = range.toString();
+  const shown = view.textContent ?? '';
+  let v = 0;
+  for (let i = 0; i < raw.length; i++) {
+    if (v >= before.length) return i;
+    if (raw[i] === shown[v]) v++;
+  }
+  return raw.length;
+}
+
+/**
  * Text with light formatting (bold, italic, highlight, colors, big lines, bullets). Shows the
  * formatted result; click to edit the plain text with a formatting bar.
  */
@@ -329,6 +367,7 @@ export function RichText({
 }) {
   const readOnly = useStore((s) => s.readOnly);
   const [editing, setEditing] = useState(!!autoFocus);
+  const [caret, setCaret] = useState<number | undefined>();
   const ref = useRef<HTMLTextAreaElement>(null);
   const html = useMemo(() => (value ? renderRich(value) : ''), [value]);
 
@@ -339,6 +378,8 @@ export function RichText({
         data-placeholder={placeholder}
         onClick={(e) => {
           if (readOnly || (e.target as HTMLElement).closest('a')) return;
+          // Start typing where the text was clicked, not at the end.
+          setCaret(caretFromClick(e.currentTarget, value, e.clientX, e.clientY));
           setEditing(true);
         }}
         dangerouslySetInnerHTML={{ __html: html }}
@@ -375,6 +416,7 @@ export function RichText({
         placeholder={placeholder}
         autoFocus
         selectAll={false}
+        caret={caret}
         onChange={onChange}
         onBlur={() => {
           // Switching to another app (a dictation tool like Wispr Flow, the keyboard's voice input…)

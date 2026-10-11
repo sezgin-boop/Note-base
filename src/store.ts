@@ -14,7 +14,7 @@ import type { RemoteComment, SharedBundle } from './cloud';
 import * as db from './db';
 import { applyHidden, collapseFrame, expandFrame, sectionMembers, sectionsHolding } from './sections';
 import { buildTemplate, type TemplateId } from './templates';
-import type { BoardContent, BoardMeta, CardData, CardEdge, CardNode, CardType } from './types';
+import type { BoardContent, BoardMeta, CardData, CardEdge, CardNode, CardType, MediaRef } from './types';
 
 interface Snapshot {
   nodes: CardNode[];
@@ -63,7 +63,8 @@ interface State {
   viewport?: BoardContent['viewport'];
   past: Snapshot[];
   future: Snapshot[];
-  lightbox: { src: string; kind: 'image' | 'video' } | null;
+  /** Full-screen view; `photos` / `index` when opened from a card with several photos. */
+  lightbox: { src: string; kind: 'image' | 'video'; photos?: MediaRef[]; index?: number } | null;
   panel: Panel;
   sidebar: boolean;
   focusId: string | null;

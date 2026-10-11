@@ -75,6 +75,8 @@ It works fully without the cloud; everything is then stored only in the browser 
 
 **Capture & export**
 
+- Full-screen photos zoom inside the viewer (pinch, double-tap, mouse wheel, ＋ / −) and pan; swipe or use the arrows
+  to flip through a gallery. The page itself never zooms, so the app's bars always stay on screen
 - Photo galleries: an image card or a scene frame holds several photos — pick many at once, add more with ＋, or drop
   photos (or another image card) onto it — and flips through them with the arrows, the dots or ← / →. Several files
   dropped on empty board space line up in a grid

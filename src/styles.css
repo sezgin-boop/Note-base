@@ -117,6 +117,8 @@ body,
 body {
   background: var(--bg);
   overflow: hidden;
+  /* No double-tap page zoom (pinch is stopped in main.tsx): the app does its own zooming. */
+  touch-action: manipulation;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -2495,17 +2497,92 @@ img.gal-in.from-right {
 
 .lightbox {
   align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.9);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   cursor: zoom-out;
-  background: rgba(0, 0, 0, 0.88);
 }
 .lightbox img,
 .lightbox video {
   max-width: 92vw;
-  max-height: 90vh;
+  max-height: 86vh;
   border-radius: 14px;
   box-shadow: 0 40px 100px rgba(0, 0, 0, 0.7);
-  cursor: default;
   animation: pop 0.18s ease-out;
+}
+.lightbox img {
+  cursor: zoom-in;
+  transform-origin: center;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 0.2s;
+  will-change: transform;
+}
+.lightbox img.live {
+  transition: none;
+}
+.lightbox.zoomed img {
+  cursor: grab;
+  border-radius: 0;
+}
+.lb-bar {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(20, 20, 26, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: default;
+}
+.lb-bar button,
+.lb-arrow {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: #fff;
+}
+.lb-bar button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.lb-bar button:disabled {
+  opacity: 0.35;
+}
+.lb-count {
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.lb-arrow {
+  position: absolute;
+  top: 50%;
+  margin-top: -22px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(20, 20, 26, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.lb-arrow:hover {
+  background: rgba(20, 20, 26, 0.85);
+}
+.lb-arrow.prev {
+  left: 14px;
+}
+.lb-arrow.next {
+  right: 14px;
 }
 
 /* Jobs panel (floating, right) */
