@@ -1,11 +1,12 @@
-import { Handle, NodeResizeControl, NodeResizer, Position, ResizeControlVariant } from '@xyflow/react';
+import { Handle, NodeResizeControl, NodeResizer, Position, ResizeControlVariant, useUpdateNodeInternals } from '@xyflow/react';
 import type { ReactNode } from 'react';
-import { Heading, Highlighter, List } from 'lucide-react';
+import { AArrowDown, AArrowUp, Heading, Highlighter, List } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePreviewUrl } from '../db';
 import { renderRich, TEXT_COLORS, toggleLinePrefix, wrapSelection } from '../richtext';
 import { skinLook } from '../skins';
 import { useStore } from '../store';
+import { stepTextSize, textScale } from '../types';
 import { CardMeta, useCardNode } from './meta';
 
 const HANDLES: [string, Position][] = [
@@ -30,7 +31,8 @@ interface ShellProps {
   label: string;
   selected?: boolean;
   color?: string;
-  resizable?: boolean | 'width';
+  /** true: free · 'width': sideways only · 'grow': free, but the card never gets shorter than its text */
+  resizable?: boolean | 'width' | 'grow';
   minWidth?: number;
   minHeight?: number;
   actions?: ReactNode;
@@ -55,10 +57,17 @@ export function Shell({
   const skin = node?.data.skin;
   const skinImage = usePreviewUrl(skin?.kind === 'image' ? skin.mediaId : undefined);
   const look = skin ? skinLook(skin, skinImage) : null;
+  const textSize = node?.data.textSize;
+  const style = {
+    ...(color ? { '--accent': color } : {}),
+    ...(textSize ? { '--ts': textScale(textSize) } : {}),
+    ...(resizable === 'grow' && node?.data.minH ? { minHeight: node.data.minH } : {}),
+  } as React.CSSProperties;
   return (
     <div
-      className={`card ${className} ${selected ? 'is-selected' : ''} ${node?.data.textSize ? `ts-${node.data.textSize}` : ''} ${look ? `skinned ink-${look.ink}` : ''}`}
-      style={color ? ({ '--accent': color } as React.CSSProperties) : undefined}
+      className={`card ${className} ${selected ? 'is-selected' : ''} ${color ? 'has-accent' : ''} ${look ? `skinned ink-${look.ink}` : ''}`}
+      data-ts={textSize}
+      style={style}
     >
       {look && (
         <span className="card-skin" aria-hidden>
@@ -96,8 +105,32 @@ export function Shell({
         {children}
         {node && node.type !== 'frame' && <CardMeta node={node} />}
       </div>
+      {/* after the body, so its handles sit on top of the text */}
+      {resizable === 'grow' && node && <GrowResizer id={node.id} selected={!!selected} minWidth={minWidth} />}
       <Handles />
     </div>
+  );
+}
+
+/**
+ * Corner and edge handles for text cards. Dragging sets the width and a minimum height: the card
+ * keeps sizing itself to its text, so it never cuts text off and still grows as you type.
+ */
+function GrowResizer({ id, selected, minWidth }: { id: string; selected: boolean; minWidth: number }) {
+  const readOnly = useStore((s) => s.readOnly);
+  const updateInternals = useUpdateNodeInternals();
+  if (readOnly) return null;
+  return (
+    <NodeResizer
+      isVisible={selected}
+      minWidth={minWidth}
+      minHeight={60}
+      lineClassName="resize-line"
+      handleClassName="resize-handle"
+      onResize={(_, p) => useStore.getState().updateData(id, { minH: Math.round(p.height) })}
+      // The card may have stopped at its text rather than where the handle was let go: measure it again.
+      onResizeEnd={() => requestAnimationFrame(() => updateInternals(id))}
+    />
   );
 }
 
@@ -166,12 +199,15 @@ export function AutoText({
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = textareaRef ?? own;
   useAutoFocus(ref, autoFocus, selectAll);
+  // Text size changes re-fit the height too.
+  const textSize = useCardNode()?.data.textSize;
+  const fontSize = style?.fontSize;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = '0px';
     el.style.height = `${el.scrollHeight}px`;
-  }, [value, ref]);
+  }, [value, ref, textSize, fontSize]);
   // Re-fit when the card gets narrower or wider (text wraps onto more or fewer lines).
   useEffect(() => {
     const el = ref.current;
@@ -239,7 +275,38 @@ function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaE
           wrapSelection(el, `:${name}[`, ']'),
         ),
       )}
+      <TextSizeButtons />
     </div>
+  );
+}
+
+/** Smaller / bigger text for the whole card. */
+function TextSizeButtons() {
+  const node = useCardNode();
+  const updateData = useStore((s) => s.updateData);
+  if (!node) return null;
+  const size = node.data.textSize;
+  const step = (dir: 1 | -1) => updateData(node.id, { textSize: stepTextSize(size, dir) });
+  return (
+    <>
+      <span className="fmt-sep" />
+      <button
+        className="fmt-btn"
+        title="Smaller text"
+        disabled={stepTextSize(size, -1) === size}
+        onMouseDown={(e) => (e.preventDefault(), step(-1))}
+      >
+        <AArrowDown size={15} />
+      </button>
+      <button
+        className="fmt-btn"
+        title="Bigger text"
+        disabled={stepTextSize(size, 1) === size}
+        onMouseDown={(e) => (e.preventDefault(), step(1))}
+      >
+        <AArrowUp size={15} />
+      </button>
+    </>
   );
 }
 
@@ -309,7 +376,19 @@ export function RichText({
         autoFocus
         selectAll={false}
         onChange={onChange}
-        onBlur={() => setEditing(false)}
+        onBlur={() => {
+          // Switching to another app (a dictation tool like Wispr Flow, the keyboard's voice input…)
+          // also blurs the field: stay in editing mode so the text can still land here when it returns.
+          if (!document.hasFocus()) {
+            const back = () =>
+              setTimeout(() => {
+                if (document.activeElement !== ref.current) setEditing(false);
+              }, 200);
+            window.addEventListener('focus', back, { once: true });
+            return;
+          }
+          setEditing(false);
+        }}
         onKeyDown={shortcut}
       />
     </div>

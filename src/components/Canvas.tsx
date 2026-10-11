@@ -393,10 +393,22 @@ export function Canvas() {
         return;
       }
       const text = e.clipboardData?.getData('text/plain');
-      if (text) {
-        e.preventDefault();
-        fromText(text, at);
+      if (!text) return;
+      e.preventDefault();
+      // With one note (or heading) selected, the text goes into it, like typing would. That's also
+      // where dictation apps such as Wispr Flow paste what you said.
+      const s = useStore.getState();
+      const sel = s.nodes.filter((n) => n.selected);
+      const target = sel.length === 1 && (sel[0].type === 'note' || sel[0].type === 'heading') ? sel[0] : null;
+      if (target && !/^https?:\/\/\S+$/.test(text.trim())) {
+        const prev = target.data.text ?? '';
+        s.checkpoint();
+        s.updateData(target.id, {
+          text: prev.trim() ? `${prev.replace(/\s+$/, '')}${target.type === 'note' ? '\n' : ' '}${text.trim()}` : text.trim(),
+        });
+        return;
       }
+      fromText(text, at);
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);

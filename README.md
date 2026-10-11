@@ -42,8 +42,12 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Text formatting in notes, scenes and job notes: **bold** (⌘B), *italic* (⌘I), ~~strike~~, ==highlight== (⌘⇧H),
   colored text, big lines and bullets — click the text to get the formatting bar. Stored as plain text with markers
   (`**bold**`, `==highlight==`, `:red[text]`), so exports and AI tools still read it
-- Rename any card's header (double-click it, e.g. "Scene 01" → "Hook"); scenes also have a title; text size S / M / L
-  and colors from the right-click menu
+- Rename any card's header (double-click it, e.g. "Scene 01" → "Hook"); scenes also have a title; text size (XS – XXL)
+  and colors from the right-click menu, or A− / A+ in the formatting bar while writing
+- Notes and lists resize in every direction (drag a corner or edge; they never cut off their text and still grow as
+  you type); drag a heading's corner to make the heading bigger or smaller
+- Dictation apps (Wispr Flow, the keyboard's mic…) work in notes: switching to them keeps the note open for typing, and
+  text pasted while a note is selected goes into that note
 - Card styles (🖌 on a selected card, or right-click → _Card style…_): change a card's whole look — 19 designed styles
   (Paper, Notebook, Kraft, Holo, Sunset, Aurora, Blueprint, Film grain…), your own color or gradient, or a picture as
   the background with shade and blur. Text switches to light or dark ink automatically. Apply a style to every card of

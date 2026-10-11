@@ -31,7 +31,7 @@ import { copiedSkin, copySkin, SKIN_TYPES } from './StylePanel';
 import { cardLabel } from '../share/outline';
 import { useStore, type Background } from '../store';
 import type { CardNode, CardType } from '../types';
-import { ACCENTS } from '../types';
+import { ACCENTS, TEXT_SIZES } from '../types';
 import { CardContext, CardMeta } from '../nodes/meta';
 
 const OUTSIDE_META = new Set<CardType>(['heading', 'color', 'board']);
@@ -43,7 +43,7 @@ const SECTION_ICONS = ['🎬', '🎞️', '📱', '🎥', '✍️', '💡', '�
 const ACCENT_TYPES = new Set<CardType>(['note', 'todo', 'frame', 'scene', 'heading']);
 /** Cards with the standard header, whose header text can be renamed. */
 const LABEL_TYPES = new Set<CardType>(['note', 'todo', 'image', 'video', 'link', 'scene', 'project']);
-const TEXT_TYPES = new Set<CardType>(['note', 'todo', 'scene', 'project', 'link']);
+const TEXT_TYPES = new Set<CardType>(['note', 'heading', 'todo', 'scene', 'project', 'link']);
 
 function Item({
   icon: Icon,
@@ -329,17 +329,11 @@ export function ContextMenu() {
           <div className="menu-row">
             <span>Text size</span>
             <div className="seg menu-seg">
-              {(
-                [
-                  ['sm', 'S'],
-                  [undefined, 'M'],
-                  ['lg', 'L'],
-                ] as const
-              ).map(([v, l]) => (
+              {TEXT_SIZES.map(([v, , l]) => (
                 <button
                   key={l}
-                  className={node.data.textSize === v ? 'on' : ''}
-                  onClick={() => s.patchSelected((n) => ({ ...n, data: { ...n.data, textSize: v } }))}
+                  className={node.data.textSize === v && !node.data.fontSize ? 'on' : ''}
+                  onClick={() => s.patchSelected((n) => ({ ...n, data: { ...n.data, textSize: v, fontSize: undefined } }))}
                 >
                   {l}
                 </button>

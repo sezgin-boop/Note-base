@@ -1,10 +1,11 @@
 import type { NodeProps } from '@xyflow/react';
 import { nanoid } from 'nanoid';
 import { ListTodo, Plus, StickyNote, X } from 'lucide-react';
+import { NodeResizer } from '@xyflow/react';
 import { useRef, useState } from 'react';
 import { takeFocus, useStore } from '../store';
 import type { CardNode, TodoItem } from '../types';
-import { ACCENTS } from '../types';
+import { ACCENTS, textScale } from '../types';
 import { AutoText, Handles, RichText, Shell, useAutoFocus } from './Shell';
 
 export function AccentPicker({ id, value }: { id: string; value?: string }) {
@@ -33,7 +34,7 @@ export function NoteNode({ id, data, selected }: NodeProps<CardNode>) {
       label="Note"
       selected={selected}
       color={data.color}
-      resizable="width"
+      resizable="grow"
       actions={selected && <AccentPicker id={id} value={data.color} />}
       className="note-card"
     >
@@ -53,17 +54,43 @@ export function NoteNode({ id, data, selected }: NodeProps<CardNode>) {
   );
 }
 
+const HEADING_SIZE = 52;
+
 export function HeadingNode({ id, data, selected }: NodeProps<CardNode>) {
   const updateData = useStore((s) => s.updateData);
+  const readOnly = useStore((s) => s.readOnly);
   const [focus] = useState(() => takeFocus(id));
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const start = useRef({ font: HEADING_SIZE, h: 1 });
+  // Dragging a corner scales the text with the box; a size from the menu (S, L, XL…) also works.
+  const size = data.fontSize ?? (data.textSize ? Math.round(HEADING_SIZE * textScale(data.textSize)) : undefined);
   return (
     <div className={`heading-card ${selected ? 'is-selected' : ''}`} style={data.color ? { color: data.color } : undefined}>
+      {!readOnly && (
+        <NodeResizer
+          isVisible={!!selected}
+          minWidth={60}
+          minHeight={20}
+          lineClassName="resize-line"
+          handleClassName="resize-handle"
+          onResizeStart={(_, p) => {
+            const el = textRef.current;
+            start.current = { font: el ? parseFloat(getComputedStyle(el).fontSize) : HEADING_SIZE, h: Math.max(p.height, 1) };
+          }}
+          onResize={(_, p) => {
+            const font = Math.round(Math.min(260, Math.max(12, (start.current.font * p.height) / start.current.h)));
+            if (font !== data.fontSize) updateData(id, { fontSize: font });
+          }}
+        />
+      )}
       <AutoText
         autoFocus={focus}
+        textareaRef={textRef}
         className="heading-text"
         value={data.text ?? ''}
         placeholder="Title"
         onChange={(text) => updateData(id, { text })}
+        style={size ? { fontSize: size } : undefined}
       />
       <Handles />
     </div>
@@ -92,7 +119,7 @@ export function TodoNode({ id, data, selected }: NodeProps<CardNode>) {
       label="List"
       selected={selected}
       color={data.color}
-      resizable="width"
+      resizable="grow"
       actions={
         selected ? (
           <AccentPicker id={id} value={data.color} />

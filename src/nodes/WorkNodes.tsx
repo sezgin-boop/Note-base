@@ -330,7 +330,7 @@ function CollapsedSection({ id, data, selected }: NodeProps<CardNode>) {
   const open = () => toggleSections([id], true);
   return (
     <div
-      className={`card section-bar look-${data.look ?? 'tint'} ${selected ? 'is-selected' : ''}`}
+      className={`card section-bar look-${data.look ?? 'tint'} ${data.color ? 'has-accent' : ''} ${selected ? 'is-selected' : ''}`}
       style={data.color ? ({ '--accent': data.color } as React.CSSProperties) : undefined}
       onDoubleClick={open}
     >

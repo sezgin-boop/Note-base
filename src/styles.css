@@ -911,7 +911,7 @@ a.side-btn {
     box-shadow 0.15s;
 }
 /* Colored cards get a soft wash from the top instead of a hard stripe. */
-.card[style]::before {
+.card.has-accent::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -919,7 +919,7 @@ a.side-btn {
   pointer-events: none;
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 90px);
 }
-.card[style]::after {
+.card.has-accent::after {
   content: '';
   position: absolute;
   left: 18px;
@@ -1019,9 +1019,6 @@ a.side-btn {
   font-size: 13.5px;
   min-height: 22px;
   display: block;
-}
-.note-card .card-body {
-  overflow: hidden;
 }
 
 .accent-picker {
@@ -1173,6 +1170,10 @@ a.side-btn {
   font-size: 13px;
   color: var(--text-2);
 }
+.fmt-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
 .fmt-btn:hover {
   background: var(--brand-soft);
   color: var(--text);
@@ -1190,23 +1191,14 @@ a.side-btn {
   margin: 0 4px;
 }
 
-/* Card text size */
-.card.ts-sm .autotext,
-.card.ts-sm .rich-view {
-  font-size: 12px;
+/* Card text size: --ts scales the card's text (set from the size buttons; M = 1) */
+.card[data-ts] .autotext,
+.card[data-ts] .rich-view,
+.card[data-ts] .todo-list .todo-text {
+  font-size: calc(13.5px * var(--ts));
 }
-.card.ts-lg .autotext,
-.card.ts-lg .rich-view {
-  font-size: 16px;
-}
-.card.ts-lg .card-title-input {
-  font-size: 19px;
-}
-.card.ts-lg .todo-list .todo-text {
-  font-size: 15.5px;
-}
-.card.ts-sm .todo-list .todo-text {
-  font-size: 12.5px;
+.card[data-ts] .card-title-input {
+  font-size: calc(15.5px * (0.3 + 0.7 * var(--ts)));
 }
 
 /* Renamed card header */

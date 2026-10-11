@@ -81,7 +81,11 @@ export interface CardData extends Record<string, unknown> {
   skin?: Skin;
   /** Custom header text replacing the card type ("Note", "Scene 01"…). */
   label?: string;
-  textSize?: 'sm' | 'lg';
+  textSize?: TextSize;
+  /** Height a note / list was stretched to (it still grows when the text needs more room). */
+  minH?: number;
+  /** Heading size in px, set by dragging its corner. */
+  fontSize?: number;
   // planning (any card)
   tags?: string[];
   publishDate?: string;
@@ -150,6 +154,23 @@ export const STATUS_COLORS: Record<ProjectStatus, string> = {
   revision: '#f87171',
   delivered: '#38bdf8',
   paid: '#34d399',
+};
+
+export type TextSize = 'xs' | 'sm' | 'lg' | 'xl' | 'xxl';
+/** Text sizes, smallest to largest, with how much they scale a card's text (M = 1). */
+export const TEXT_SIZES: [TextSize | undefined, number, string][] = [
+  ['xs', 0.82, 'XS'],
+  ['sm', 0.91, 'S'],
+  [undefined, 1, 'M'],
+  ['lg', 1.2, 'L'],
+  ['xl', 1.5, 'XL'],
+  ['xxl', 1.95, 'XXL'],
+];
+export const textScale = (size?: TextSize) => TEXT_SIZES.find(([v]) => v === size)?.[1] ?? 1;
+/** The next size up (+1) or down (-1), staying within the list. */
+export const stepTextSize = (size: TextSize | undefined, dir: 1 | -1) => {
+  const i = TEXT_SIZES.findIndex(([v]) => v === size);
+  return TEXT_SIZES[Math.max(0, Math.min(TEXT_SIZES.length - 1, (i < 0 ? 2 : i) + dir))][0];
 };
 
 export const ACCENTS = ['', '#a78bfa', '#38bdf8', '#34d399', '#f59e0b', '#f87171', '#f472b6'];
