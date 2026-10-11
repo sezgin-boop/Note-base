@@ -550,7 +550,12 @@ function MoveGrip() {
 }
 
 export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentType<P>) {
-  return function WithActions(props: P) {
+  return function WithActions(flowProps: P) {
+    // The card's data straight from the app's store. React Flow hands nodes their props one render
+    // later; with those, a text field would briefly get its old text back while you type, which
+    // throws the caret to the end (e.g. after deleting a selected word in the middle of a note).
+    const live = useStore((s) => s.nodes.find((n) => n.id === flowProps.id)?.data);
+    const props = live && live !== flowProps.data ? { ...flowProps, data: live } : flowProps;
     return (
       <>
         {props.selected && <CardActions id={props.id} />}
