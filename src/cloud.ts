@@ -83,5 +83,6 @@ export const toRemoteComment = (r: any): RemoteComment => ({
   createdAt: r.created_at ?? r.createdAt,
   done: r.done,
   version: r.version ?? null,
-  kind: r.kind === 'approval' || r.kind === 'markup' ? r.kind : 'comment',
+  // Markup always lives on the "__markup__" node; databases set up before markup existed store it as a comment.
+  kind: (r.node_id ?? r.nodeId) === '__markup__' ? 'markup' : r.kind === 'approval' || r.kind === 'markup' ? r.kind : 'comment',
 });

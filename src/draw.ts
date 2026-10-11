@@ -169,6 +169,20 @@ export function markupBodies(shapes: Shape[], max = 45000): string[] {
   return bodies;
 }
 
+/** Long strokes split into pieces that each fit in `max` characters (neighbouring pieces share a point). */
+export function splitShapes(shapes: Shape[], max: number): Shape[] {
+  const out: Shape[] = [];
+  const fit = (s: Shape) => {
+    const n = s.points.length / 2;
+    if (JSON.stringify(s).length <= max || (s.shape !== 'pen' && s.shape !== 'marker') || n < 4) return void out.push(s);
+    const mid = Math.floor(n / 2);
+    fit({ ...s, points: s.points.slice(0, (mid + 1) * 2) });
+    fit({ ...s, points: s.points.slice(mid * 2) });
+  };
+  shapes.forEach(fit);
+  return out;
+}
+
 export function parseMarkup(body: string): Shape[] {
   try {
     const o = JSON.parse(body);

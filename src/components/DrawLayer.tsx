@@ -24,6 +24,7 @@ import {
   fontSize,
   MARKUP_NODE,
   markupBodies,
+  splitShapes,
   meaningful,
   paint,
   parseMarkup,
@@ -49,6 +50,8 @@ const TOOLS: { id: DrawTool; label: string; key: string; icon: React.ReactNode }
   { id: 'text', label: 'Text', key: 'T', icon: <Type size={16} /> },
   { id: 'eraser', label: 'Eraser', key: 'E', icon: <Eraser size={16} /> },
 ];
+
+const OLD_DATABASE = /unknown kind|function .* does not exist|too long|could not find the function/i;
 
 /** Markup comments on the open board, with their shapes. */
 function useMarkups() {
@@ -325,15 +328,31 @@ export function DrawToolbar() {
     const s = useStore.getState();
     try {
       const sent: RemoteComment[] = [];
-      for (const body of markupBodies(pending)) {
-        const id = await addSharedComment(shared.shareId, {
+      // Databases set up before markup existed only take comments (up to 2000 characters): then the
+      // drawing goes as several small comments on the markup node, which read back as markup.
+      let legacy = false;
+      const post = (body: string) =>
+        addSharedComment(shared.shareId, {
           boardId: s.currentId,
           nodeId: MARKUP_NODE,
           t: null,
           author,
           body,
-          kind: 'markup',
+          kind: legacy ? 'comment' : 'markup',
         });
+      let bodies = markupBodies(pending);
+      for (let i = 0; i < bodies.length; i++) {
+        const body = bodies[i];
+        let id: string;
+        try {
+          id = await post(body);
+        } catch (e) {
+          if (legacy || i > 0 || !OLD_DATABASE.test((e as Error).message)) throw e;
+          legacy = true;
+          bodies = markupBodies(splitShapes(pending, 1800), 1900);
+          i = -1;
+          continue;
+        }
         sent.push({
           id,
           boardId: s.currentId,
@@ -355,12 +374,7 @@ export function DrawToolbar() {
       toast('Markup sent — thank you!');
     } catch (e) {
       const msg = (e as Error).message;
-      toast(
-        /unknown kind|function .* does not exist|too long|1-2000/i.test(msg)
-          ? "This board can't take markup yet — the owner needs to update Notebase's database (run schema.sql again)."
-          : `Couldn't send: ${msg}`,
-        8000,
-      );
+      toast(`Couldn't send: ${msg}`, 8000);
     } finally {
       setSending(false);
     }
