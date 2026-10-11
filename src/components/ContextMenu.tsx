@@ -1,5 +1,6 @@
-import { NodeToolbar, Position, useReactFlow, type NodeProps } from '@xyflow/react';
+import { NodeToolbar, Position, useReactFlow, useViewport, type NodeProps } from '@xyflow/react';
 import {
+  Move,
   ArrowDownToLine,
   CalendarDays,
   Pipette,
@@ -25,7 +26,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
 import { addPaletteFor } from '../palette';
-import { DRAW_COLORS, DRAW_SIZES, paint } from '../draw';
+import { DRAW_COLORS, DRAW_SIZES, paint, useDraw } from '../draw';
 import { SECTION_LOOKS } from '../sections';
 import { copiedSkin, copySkin, SKIN_TYPES } from './StylePanel';
 import { cardLabel } from '../share/outline';
@@ -530,11 +531,30 @@ function CardActions({ id }: { id: string }) {
   );
 }
 
+/**
+ * A handle under a selected card: grab it to move the card right away (on phones there's no need
+ * to press and hold, and no risk of scrolling the board or starting to type instead).
+ */
+function MoveGrip() {
+  const readOnly = useStore((s) => s.readOnly);
+  const drawing = useDraw((s) => !!s.tool);
+  // Stays finger-sized when the board is zoomed out.
+  const zoom = useViewport().zoom;
+  if (readOnly || drawing) return null;
+  return (
+    <div className="move-grip" title="Drag to move" style={zoom < 1 ? { scale: String(1 / zoom) } : undefined}>
+      <Move size={14} />
+      <span>Move</span>
+    </div>
+  );
+}
+
 export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentType<P>) {
   return function WithActions(props: P) {
     return (
       <>
         {props.selected && <CardActions id={props.id} />}
+        {props.selected && <MoveGrip />}
         <CardContext.Provider value={props as unknown as CardNode}>
           <Comp {...props} />
         </CardContext.Provider>

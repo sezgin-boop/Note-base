@@ -25,6 +25,7 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Cards: Note, List, Heading, Image, Video, Link, Scene (storyboard), Job (client, due date, fee, status), Color, Section,
   Board (boards inside boards)
 - Arrows between cards, with labels and arrowheads (right-click a connection)
+- A selected card shows a **Move** handle underneath: drag it to move the card straight away (on phones too)
 - On phones, press and hold any card (even over its text) for a moment to lift it, then drag it — it follows your finger,
   the board scrolls at the screen edges, sections carry their cards and photos drop into scene frames; a quick swipe
   still scrolls and a tap still edits
@@ -74,8 +75,9 @@ It works fully without the cloud; everything is then stored only in the browser 
 
 **Capture & export**
 
-- Several photos at once: choose many in an image card's _Upload images_ (or drop them on the board) and they line
-  up in a grid, one undo step for all
+- Photo galleries: an image card or a scene frame holds several photos — pick many at once, add more with ＋, or drop
+  photos (or another image card) onto it — and flips through them with the arrows, the dots or ← / →. Several files
+  dropped on empty board space line up in a grid
 - Quick capture (Q, or the ⚡ button on phones): type or dictate an idea, add a photo or a link — it lands in your
   **Inbox** board. On Android you can also share links from other apps straight into Notebase.
 - Extract a color palette from any image (right-click → _Extract color palette_)

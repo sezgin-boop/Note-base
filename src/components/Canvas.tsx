@@ -15,7 +15,8 @@ import { addTyped } from '../actions';
 import { importFromAi } from '../ai/apply';
 import { hasNotebaseBlock } from '../ai/importer';
 import { isImageUrl, isVideoUrl, saveMedia } from '../db';
-import { addMediaFiles, ImageNode, LinkNode } from '../nodes/MediaNodes';
+import { addMediaFiles, ImageNode, LinkNode, savePhotos } from '../nodes/MediaNodes';
+import { appendPhotos, clean, galleryOf } from '../gallery';
 import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
@@ -27,7 +28,7 @@ import { DrawOverlay, useDrawInput } from './DrawLayer';
 import { create } from 'zustand';
 import { sectionMembers } from '../sections';
 import { ContextMenu, withCardActions } from './ContextMenu';
-import type { CardNode, CardType } from '../types';
+import type { CardNode, CardType, MediaRef } from '../types';
 
 const nodeTypes = Object.fromEntries(
   Object.entries({
@@ -185,6 +186,16 @@ function useTouchNavigation(
         const editing = target === document.activeElement && target.matches('input, textarea');
         const card = target.closest('.react-flow__node') as HTMLElement | null;
         const st = useStore.getState();
+        // The move handle under a selected card lifts it at once, no holding needed.
+        if (card && target.closest('.move-grip')) {
+          e.preventDefault();
+          e.stopPropagation();
+          const t = e.touches[0];
+          hold = { id: card.dataset.id!, x: t.clientX, y: t.clientY, timer: setTimeout(() => {}, 0), lifted: false };
+          lift();
+          pan = null;
+          return;
+        }
         if (card && !editing && !st.readOnly && !useDraw.getState().tool && !target.closest(HOLD_FROM_NOT)) {
           const t = e.touches[0];
           hold = { id: card.dataset.id!, x: t.clientX, y: t.clientY, timer: setTimeout(lift, 350), lifted: false };
@@ -415,16 +426,16 @@ export function Canvas() {
   }, [fromFiles, fromText]);
 
   /** Give a card's picture slot (scene frame, empty image / video card) a picture. */
-  const fillSlot = (cardId: string, media: { mediaId?: string; url?: string; caption?: string }, removeId?: string) => {
+  /** Photos dropped on a picture slot join that card's photos (an empty slot takes them as its first). */
+  const fillSlot = (cardId: string, media: MediaRef[], removeId?: string) => {
     setNodes((ns) =>
       ns
         .filter((n) => n.id !== removeId)
         .map((n) => {
           if (n.id !== cardId) return n;
-          const data = { ...n.data, mediaId: media.mediaId, url: media.url };
-          if (n.type !== 'scene' && media.caption && !n.data.caption) data.caption = media.caption;
-          for (const k of ['mediaId', 'url'] as const) if (data[k] === undefined) delete data[k];
-          return { ...n, data };
+          const patch = appendPhotos(n.data, media);
+          if (n.type === 'scene') delete patch.caption;
+          return { ...n, data: clean({ ...n.data, ...patch }) };
         }),
     );
     if (removeId) setEdges((es) => es.filter((e) => e.source !== removeId && e.target !== removeId));
@@ -446,12 +457,21 @@ export function Canvas() {
     const slot = dropTargetAt(e.clientX, e.clientY);
     if (slot) {
       const kind = slot.dataset.dropKind ?? 'image';
-      const fits = files.find((f) => f.type.startsWith(`${kind}/`));
+      const fits = files.filter((f) => f.type.startsWith(`${kind}/`));
       const uri = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')).split('\n')[0].trim();
-      if (fits) {
+      if (fits.length) {
         checkpoint();
-        fillSlot(slot.dataset.dropTarget!, { mediaId: await saveMedia(fits), caption: fits.name.replace(/\.[^.]+$/, '') });
-        const rest = files.filter((f) => f !== fits);
+        // Every photo joins the card; a video slot takes one video.
+        const used = kind === 'image' ? fits : fits.slice(0, 1);
+        if (kind === 'image') fillSlot(slot.dataset.dropTarget!, await savePhotos(used));
+        else {
+          const target = slot.dataset.dropTarget!;
+          useStore
+            .getState()
+            .updateData(target, { mediaId: await saveMedia(used[0]), caption: used[0].name.replace(/\.[^.]+$/, '') });
+          settleSlot(target);
+        }
+        const rest = files.filter((f) => !used.includes(f));
         if (rest.length) fromFiles(rest, at);
         return;
       }
@@ -461,8 +481,8 @@ export function Canvas() {
         const blob = await fetch(uri)
           .then((r) => (r.ok ? r.blob() : null))
           .catch(() => null);
-        if (blob?.type.startsWith(`${kind}/`)) fillSlot(slot.dataset.dropTarget!, { mediaId: await saveMedia(blob) });
-        else fillSlot(slot.dataset.dropTarget!, { url: uri });
+        if (blob?.type.startsWith(`${kind}/`)) fillSlot(slot.dataset.dropTarget!, [{ mediaId: await saveMedia(blob) }]);
+        else fillSlot(slot.dataset.dropTarget!, [{ url: uri }]);
         return;
       }
     }
@@ -539,11 +559,7 @@ export function Canvas() {
       // An image card held over a picture slot goes into it; otherwise it just lands (and is selected).
       const slot = node.type === 'image' && (node.data.mediaId || node.data.url) ? dropTargetAt(x, y, id) : null;
       if (slot && (slot.dataset.dropKind ?? 'image') === 'image')
-        return fillSlot(
-          slot.dataset.dropTarget!,
-          { mediaId: node.data.mediaId, url: node.data.url, caption: node.data.caption },
-          id,
-        );
+        return fillSlot(slot.dataset.dropTarget!, galleryOf(node.data), id);
       s.selectOnly(id);
     },
     // fillSlot only uses the store's setters, which never change
@@ -596,7 +612,7 @@ export function Canvas() {
           const slot = dropTargetAt(x, y, img.id);
           if (!slot || (slot.dataset.dropKind ?? 'image') !== 'image') return;
           // The image moves into the slot (one undo step: the drag already saved a checkpoint).
-          fillSlot(slot.dataset.dropTarget!, { mediaId: img.data.mediaId, url: img.data.url, caption: img.data.caption }, img.id);
+          fillSlot(slot.dataset.dropTarget!, galleryOf(img.data), img.id);
         }}
         onMoveEnd={(_, v) => setViewport(v)}
         onNodeContextMenu={(e, node) => {

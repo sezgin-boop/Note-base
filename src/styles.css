@@ -2019,8 +2019,133 @@ a.side-btn {
   opacity: 1;
   transform: scale(1);
 }
-.scene-thumb-hide:hover {
+.scene-thumb-hide:hover,
+.scene-thumb-add:hover {
   background: rgba(0, 0, 0, 0.7);
+}
+.scene-thumb-add {
+  position: absolute;
+  top: 6px;
+  right: 34px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.scene-thumb:hover .scene-thumb-add,
+.card.is-selected .scene-thumb-add {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .scene-thumb-add {
+    opacity: 0.85;
+    width: 30px;
+    height: 30px;
+    right: 42px;
+  }
+}
+
+/* Photo galleries (image cards and scene frames with several photos) */
+.media-frame.gallery {
+  position: relative;
+}
+.gal-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-top: -15px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    transform 0.15s,
+    background 0.15s;
+}
+.gal-arrow.prev {
+  left: 8px;
+}
+.gal-arrow.next {
+  right: 8px;
+}
+.gal-arrow:hover {
+  background: rgba(0, 0, 0, 0.75);
+  transform: scale(1.08);
+}
+.gal-arrow:active {
+  transform: scale(0.94);
+}
+.media-frame:hover .gal-arrow,
+.scene-thumb:hover .gal-arrow,
+.card.is-selected .gal-arrow {
+  opacity: 1;
+}
+.gal-count {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  z-index: 2;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.gal-count i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  transition:
+    background 0.2s,
+    width 0.2s;
+}
+.gal-count i.on {
+  width: 14px;
+  border-radius: 3px;
+  background: #fff;
+}
+img.gal-in {
+  animation: gal-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+img.gal-in.from-left {
+  --gal-from: -14%;
+}
+img.gal-in.from-right {
+  --gal-from: 14%;
+}
+@keyframes gal-in {
+  from {
+    opacity: 0.2;
+    transform: translateX(var(--gal-from));
+  }
+}
+@media (pointer: coarse) {
+  .gal-arrow {
+    opacity: 0.9;
+    width: 34px;
+    height: 34px;
+    margin-top: -17px;
+  }
 }
 @media (pointer: coarse) {
   .scene-thumb-hide {
@@ -4652,5 +4777,49 @@ select.field-input {
   .react-flow__node :is(input, textarea) {
     -webkit-user-select: text;
     user-select: text;
+  }
+}
+
+/* Move handle under the selected card */
+.move-grip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 10px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 40%, transparent);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transform-origin: top left;
+  animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.move-grip:active,
+.react-flow__node.dragging .move-grip {
+  cursor: grabbing;
+}
+.react-flow__node.dragging .move-grip,
+.react-flow__node.touch-lifted .move-grip {
+  opacity: 0;
+}
+/* Cards that show their tags / schedule underneath push the handle below them. */
+.react-flow__node:has(.card-meta.outside) .move-grip {
+  top: calc(100% + 40px);
+}
+@media (pointer: coarse) {
+  .move-grip {
+    height: 38px;
+    padding: 0 15px 0 12px;
+    font-size: 13px;
   }
 }

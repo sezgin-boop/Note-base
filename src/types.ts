@@ -60,6 +60,8 @@ export interface CardData extends Record<string, unknown> {
   mediaId?: string;
   url?: string;
   caption?: string;
+  /** More photos in the same image card / scene frame (the first one is mediaId / url above). */
+  more?: MediaRef[];
   boardId?: string;
   // video
   comments?: VideoComment[];
@@ -155,6 +157,13 @@ export const STATUS_COLORS: Record<ProjectStatus, string> = {
   delivered: '#38bdf8',
   paid: '#34d399',
 };
+
+/** One photo: an uploaded file or a web address. */
+export interface MediaRef {
+  mediaId?: string;
+  url?: string;
+  caption?: string;
+}
 
 export type TextSize = 'xs' | 'sm' | 'lg' | 'xl' | 'xxl';
 /** Text sizes, smallest to largest, with how much they scale a card's text (M = 1). */

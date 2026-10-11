@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { saveMedia, useMediaUrl, usePreviewUrl } from '../db';
+import { useMediaUrl, usePreviewUrl } from '../db';
 import { useRef, useState } from 'react';
 import { memberSummary } from '../sections';
 import { toast } from '../ui';
@@ -21,7 +21,8 @@ import { takeFocus, useStore } from '../store';
 import type { CardNode, ProjectStatus } from '../types';
 import { SHOT_TYPES, STATUS_COLORS, STATUS_LABELS } from '../types';
 import { AccentPicker } from './TextNodes';
-import { pickFile } from './MediaNodes';
+import { addPhotos } from './MediaNodes';
+import { GalleryNav, useGallery } from './Gallery';
 import { AutoText, Handles, RichText, Shell, useAutoFocus } from './Shell';
 
 export function daysLeft(deadline?: string) {
@@ -41,13 +42,11 @@ export function DeadlineBadge({ deadline, status }: { deadline?: string; status?
 export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
   const updateData = useStore((s) => s.updateData);
   const setLightbox = useStore((s) => s.setLightbox);
-  // A frame is an uploaded picture, or a web picture dropped from another site.
-  const src = useMediaUrl(data.mediaId, data.url);
-  const preview = usePreviewUrl(data.mediaId, data.url);
-  const upload = async () => {
-    const file = await pickFile('image/*');
-    if (file) updateData(id, { mediaId: await saveMedia(file) });
-  };
+  // A frame is one or more uploaded pictures (or web pictures dropped from another site), flipped with arrows.
+  const g = useGallery(data, selected);
+  const src = useMediaUrl(g.current?.mediaId, g.current?.url);
+  const preview = usePreviewUrl(g.current?.mediaId, g.current?.url);
+  const upload = () => addPhotos(id);
   const readOnly = useStore((s) => s.readOnly);
   const setFrame = (hide: boolean) => updateData(id, { hideFrame: hide || undefined });
   return (
@@ -83,11 +82,33 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
             onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}
           >
             {src ? (
-              preview && <img src={preview} alt="" draggable={false} decoding="async" />
+              preview && (
+                <img
+                  key={`${g.index}:${preview}`}
+                  className={g.dir ? `gal-in ${g.dir > 0 ? 'from-right' : 'from-left'}` : undefined}
+                  src={preview}
+                  alt=""
+                  draggable={false}
+                  decoding="async"
+                />
+              )
             ) : (
               <span>
                 <ImagePlus size={16} /> Add frame
               </span>
+            )}
+            <GalleryNav count={g.count} index={g.index} go={g.go} />
+            {!readOnly && src && (
+              <button
+                className="scene-thumb-add"
+                title="Add more frames"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addPhotos(id);
+                }}
+              >
+                <ImagePlus size={12} />
+              </button>
             )}
             {!readOnly && (
               <button

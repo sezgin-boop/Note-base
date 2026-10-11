@@ -3,7 +3,7 @@
 // by the server-rendered share page (api/share.ts), so keep it free of browser APIs.
 
 import { SIZES } from '../cards';
-import type { BoardContent, CardNode, CardType, ProjectStatus } from '../types';
+import type { BoardContent, CardData, CardNode, CardType, ProjectStatus } from '../types';
 import { STATUS_LABELS } from '../types';
 import { stripColors } from '../richtext';
 
@@ -180,7 +180,8 @@ function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: Outlin
         kind: 'Image',
         title: d.caption,
         image: media ? { url: media, alt: d.caption || 'Image' } : undefined,
-        lines: media ? undefined : ['(image only on the owner’s device, not uploaded to the cloud)'],
+        meta: d.more?.length ? [`${d.more.length + 1} photos`] : undefined,
+        lines: media ? morePhotos(d, opts) : ['(image only on the owner’s device, not uploaded to the cloud)'],
       };
     case 'video':
       return {
@@ -217,7 +218,12 @@ function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: Outlin
         kind: 'Scene',
         title: `${d.label || `Scene ${String(d.number ?? 1).padStart(2, '0')}`}${d.title ? `: ${d.title}` : ''}`,
         meta: [d.shot, d.duration].filter(Boolean) as string[],
-        lines: [...lines(d.text), ...(d.audio ? [`Sound: ${d.audio}`] : []), ...(d.prompt ? [`Image prompt: ${d.prompt}`] : [])],
+        lines: [
+          ...lines(d.text),
+          ...(d.audio ? [`Sound: ${d.audio}`] : []),
+          ...(d.prompt ? [`Image prompt: ${d.prompt}`] : []),
+          ...(morePhotos(d, opts) ?? []),
+        ],
         image: d.mediaId && opts.mediaUrl(d.mediaId) ? { url: opts.mediaUrl(d.mediaId)!, alt: 'Scene frame' } : undefined,
       };
     case 'project':
@@ -387,6 +393,12 @@ function itemMd(it: Item): string[] {
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+/** The other photos of an image card / scene frame (after the first, which is shown as its image). */
+function morePhotos(d: CardData, opts: { mediaUrl: (id: string) => string | null }) {
+  const urls = (d.more ?? []).map((m) => (m.mediaId ? opts.mediaUrl(m.mediaId) : (m.url ?? null))).filter(Boolean);
+  return urls.length ? [`More photos: ${urls.join(' , ')}`] : undefined;
+}
+
 const safeUrl = (u: string) => (/^(https?:|data:image\/)/i.test(u) ? u : '#');
 
 export function boardsToHtml(boards: OutlineBoard[], opts: OutlineOptions): string {
