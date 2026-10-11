@@ -4231,3 +4231,67 @@ select.field-input {
   justify-content: center;
   gap: 6px;
 }
+
+/* ---------- Dropping pictures into picture slots ---------- */
+.scene-thumb,
+.media-empty {
+  position: relative;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s;
+}
+.drop-hover {
+  border-color: var(--brand) !important;
+  border-style: solid !important;
+  transform: scale(1.04);
+  box-shadow:
+    0 0 0 4px var(--brand-soft),
+    0 10px 30px -10px color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.drop-hover::after {
+  content: 'Drop to set';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: color-mix(in srgb, var(--brand-strong) 55%, transparent);
+  animation: fade 0.15s;
+}
+.scene-thumb.drop-hover:has(img)::after {
+  content: 'Drop to replace';
+}
+.drop-pop img {
+  animation: drop-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.drop-pop {
+  animation: drop-ring 0.6s ease-out;
+}
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+@keyframes drop-ring {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 60%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+/* the image card shrinks a little while it hovers over a slot, as if about to drop in */
+.react-flow__node.dropping > * {
+  transform: scale(0.8);
+  opacity: 0.55;
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s;
+}

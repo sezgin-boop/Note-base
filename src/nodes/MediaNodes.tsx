@@ -24,7 +24,7 @@ export function EmptyMedia({ id, kind }: { id: string; kind: 'image' | 'video' }
     if (file) updateData(id, { mediaId: await saveMedia(file), caption: file.name });
   };
   return (
-    <div className="media-empty">
+    <div className="media-empty" data-drop-target={id} data-drop-kind={kind}>
       <button className="nodrag btn" onClick={upload}>
         <Upload size={14} /> {kind === 'image' ? 'Upload image' : 'Upload video'}
       </button>

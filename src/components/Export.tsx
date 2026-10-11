@@ -59,7 +59,7 @@ async function storyboardPdf() {
   if (!scenes.length) return toast('This board has no scene cards yet');
   const cells = await Promise.all(
     scenes.map(async (s) => {
-      const src = s.data.mediaId && !s.data.hideFrame ? await getMediaUrl(s.data.mediaId) : null;
+      const src = s.data.hideFrame ? null : s.data.mediaId ? await getMediaUrl(s.data.mediaId) : (s.data.url ?? null);
       return `<div class="scene">
         ${s.data.hideFrame ? '' : `<div class="frame">${src ? `<img src="${src}">` : 'No frame'}</div>`}
         <div class="meta"><span>Scene ${String(s.data.number ?? 1).padStart(2, '0')}</span><span>${esc(s.data.shot)}</span><span>${esc(s.data.duration)}</span></div>

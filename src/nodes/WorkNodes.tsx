@@ -41,8 +41,9 @@ export function DeadlineBadge({ deadline, status }: { deadline?: string; status?
 export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
   const updateData = useStore((s) => s.updateData);
   const setLightbox = useStore((s) => s.setLightbox);
-  const src = useMediaUrl(data.mediaId);
-  const preview = usePreviewUrl(data.mediaId);
+  // A frame is an uploaded picture, or a web picture dropped from another site.
+  const src = useMediaUrl(data.mediaId, data.url);
+  const preview = usePreviewUrl(data.mediaId, data.url);
   const upload = async () => {
     const file = await pickFile('image/*');
     if (file) updateData(id, { mediaId: await saveMedia(file) });
@@ -75,7 +76,12 @@ export function SceneNode({ id, data, selected }: NodeProps<CardNode>) {
       {/* The frame area folds away smoothly (grid rows 1fr → 0fr) when hidden. */}
       <div className={`scene-thumb-fold ${data.hideFrame ? 'off' : ''}`} aria-hidden={data.hideFrame}>
         <div className="scene-thumb-inner">
-          <div className="scene-thumb nodrag" onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}>
+          <div
+            className="scene-thumb nodrag"
+            data-drop-target={id}
+            data-drop-kind="image"
+            onClick={() => (src ? setLightbox({ src, kind: 'image' }) : upload())}
+          >
             {src ? (
               preview && <img src={preview} alt="" draggable={false} decoding="async" />
             ) : (

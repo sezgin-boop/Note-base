@@ -20,6 +20,7 @@ import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
 import { SELECTION, useStore } from '../store';
+import { dropTargetAt, highlightSlot, pointOf, settleSlot } from './dropTargets';
 import { ContextMenu, withCardActions } from './ContextMenu';
 import type { CardNode, CardType } from '../types';
 
@@ -194,6 +195,7 @@ export function Canvas() {
     onConnect,
     addCard,
     setNodes,
+    setEdges,
     setViewport,
     checkpoint,
     readOnly,
@@ -283,8 +285,26 @@ export function Canvas() {
     return () => window.removeEventListener('paste', onPaste);
   }, [fromFiles, fromText]);
 
-  const onDrop = (e: React.DragEvent) => {
+  /** Give a card's picture slot (scene frame, empty image / video card) a picture. */
+  const fillSlot = (cardId: string, media: { mediaId?: string; url?: string; caption?: string }, removeId?: string) => {
+    setNodes((ns) =>
+      ns
+        .filter((n) => n.id !== removeId)
+        .map((n) => {
+          if (n.id !== cardId) return n;
+          const data = { ...n.data, mediaId: media.mediaId, url: media.url };
+          if (n.type !== 'scene' && media.caption && !n.data.caption) data.caption = media.caption;
+          for (const k of ['mediaId', 'url'] as const) if (data[k] === undefined) delete data[k];
+          return { ...n, data };
+        }),
+    );
+    if (removeId) setEdges((es) => es.filter((e) => e.source !== removeId && e.target !== removeId));
+    settleSlot(cardId);
+  };
+
+  const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+    highlightSlot(null);
     if (readOnly) return;
     const at = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     const type = e.dataTransfer.getData('application/notebase') as CardType;
@@ -293,6 +313,30 @@ export function Canvas() {
       return;
     }
     const files = [...e.dataTransfer.files];
+    // Onto a picture slot: the first fitting file fills it, any others become cards as usual.
+    const slot = dropTargetAt(e.clientX, e.clientY);
+    if (slot) {
+      const kind = slot.dataset.dropKind ?? 'image';
+      const fits = files.find((f) => f.type.startsWith(`${kind}/`));
+      const uri = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')).split('\n')[0].trim();
+      if (fits) {
+        checkpoint();
+        fillSlot(slot.dataset.dropTarget!, { mediaId: await saveMedia(fits), caption: fits.name.replace(/\.[^.]+$/, '') });
+        const rest = files.filter((f) => f !== fits);
+        if (rest.length) fromFiles(rest, at);
+        return;
+      }
+      if (!files.length && /^https?:\/\//.test(uri)) {
+        // A picture dragged from another website: keep a copy when the site allows it, else link to it.
+        checkpoint();
+        const blob = await fetch(uri)
+          .then((r) => (r.ok ? r.blob() : null))
+          .catch(() => null);
+        if (blob?.type.startsWith(`${kind}/`)) fillSlot(slot.dataset.dropTarget!, { mediaId: await saveMedia(blob) });
+        else fillSlot(slot.dataset.dropTarget!, { url: uri });
+        return;
+      }
+    }
     if (files.length) return void fromFiles(files, at);
     const uri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
     if (uri) fromText(uri.split('\n')[0], at);
@@ -331,7 +375,19 @@ export function Canvas() {
     }
   };
 
-  const onNodeDrag: OnNodeDrag<CardNode> = (_, __, dragged) => {
+  /** A single image card with a picture, which can be dropped into a picture slot. */
+  const imageBeingDropped = (dragged: CardNode[]) =>
+    dragged.length === 1 && dragged[0].type === 'image' && (dragged[0].data.mediaId || dragged[0].data.url) ? dragged[0] : null;
+
+  const onNodeDrag: OnNodeDrag<CardNode> = (e, __, dragged) => {
+    const img = imageBeingDropped(dragged);
+    if (img) {
+      const { x, y } = pointOf(e as unknown as MouseEvent);
+      const slot = dropTargetAt(x, y, img.id);
+      const fits = slot && (slot.dataset.dropKind ?? 'image') === 'image' ? slot : null;
+      highlightSlot(fits);
+      document.querySelector(`.react-flow__node[data-id="${img.id}"]`)?.classList.toggle('dropping', !!fits);
+    }
     if (!frameChildren.current.size) return;
     const moves = new Map<string, XYPosition>();
     for (const frame of dragged) {
@@ -355,6 +411,13 @@ export function Canvas() {
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
+        // Files or web pictures (not toolbar cards) light up the picture slot under the pointer.
+        const types = [...e.dataTransfer.types];
+        if (!readOnly && !types.includes('application/notebase') && (types.includes('Files') || types.includes('text/uri-list')))
+          highlightSlot(dropTargetAt(e.clientX, e.clientY));
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) highlightSlot(null);
       }}
       onDrop={onDrop}
       onMouseMove={(e) => (mouse.current = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }))}
@@ -374,7 +437,18 @@ export function Canvas() {
         onConnect={onConnect}
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
-        onNodeDragStop={() => frameChildren.current.clear()}
+        onNodeDragStop={(e, _, dragged) => {
+          frameChildren.current.clear();
+          const img = imageBeingDropped(dragged);
+          highlightSlot(null);
+          document.querySelectorAll('.react-flow__node.dropping').forEach((el) => el.classList.remove('dropping'));
+          if (!img) return;
+          const { x, y } = pointOf(e as unknown as MouseEvent);
+          const slot = dropTargetAt(x, y, img.id);
+          if (!slot || (slot.dataset.dropKind ?? 'image') !== 'image') return;
+          // The image moves into the slot (one undo step: the drag already saved a checkpoint).
+          fillSlot(slot.dataset.dropTarget!, { mediaId: img.data.mediaId, url: img.data.url, caption: img.data.caption }, img.id);
+        }}
         onMoveEnd={(_, v) => setViewport(v)}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();

@@ -27,6 +27,8 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Arrows between cards, with labels and arrowheads (right-click a connection)
 - Right-click menus for cards, connections and the canvas; on touch screens a selected card shows duplicate / delete / more
 - Drag & drop or paste images, videos, links and text; moving a section moves the cards inside it
+- Drop a picture onto a scene's frame (or an empty image card) to put it there — a file from your computer, a picture
+  from a website, or an image card already on the board (it moves into the frame)
 - Collapsible sections: the ▾ button (or Enter on a selected section) folds a section into a compact bar showing its
   icon, title, what's inside (card counts, to-do progress, picture previews); open it again with ▸ or a double-click.
   Right-click a section for its icon, color and style (Tint, Solid, Outline, Dashed), or the canvas for _Collapse /
