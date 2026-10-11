@@ -4587,3 +4587,47 @@ select.field-input {
     height: 38px;
   }
 }
+
+/* ---------- Press and hold to move (touch) ---------- */
+.react-flow__node.touch-lifted {
+  z-index: 3000 !important;
+}
+.react-flow__node.touch-lifted > * {
+  transform: scale(1.05) rotate(-1.2deg);
+  box-shadow:
+    0 0 0 2px var(--brand),
+    0 30px 60px -18px rgba(0, 0, 0, 0.65);
+  transition:
+    transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.22s;
+  animation: lift-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.react-flow__node.touch-dropped > * {
+  animation: drop-settle 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes lift-in {
+  from {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--brand);
+  }
+}
+@keyframes drop-settle {
+  from {
+    transform: scale(1.05) rotate(-1.2deg);
+  }
+  60% {
+    transform: scale(0.98);
+  }
+}
+@media (pointer: coarse) {
+  /* holding a card moves it: no text selection or callout menu on the card itself */
+  .react-flow__node {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .react-flow__node :is(input, textarea) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

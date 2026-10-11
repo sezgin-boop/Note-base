@@ -24,6 +24,8 @@ import { dropTargetAt, highlightSlot, pointOf, settleSlot } from './dropTargets'
 import { useDraw } from '../draw';
 import { DrawNode } from '../nodes/DrawNode';
 import { DrawOverlay, useDrawInput } from './DrawLayer';
+import { create } from 'zustand';
+import { sectionMembers } from '../sections';
 import { ContextMenu, withCardActions } from './ContextMenu';
 import type { CardNode, CardType } from '../types';
 
@@ -90,11 +92,75 @@ export function useCreateFrom() {
 function useTouchNavigation(
   ref: React.RefObject<HTMLDivElement | null>,
   onEnd: (v: { x: number; y: number; zoom: number }) => void,
+  onLiftDrop: (id: string, x: number, y: number) => void,
 ) {
   const rf = useReactFlow();
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Press and hold a card (anywhere on it, text too) to lift it and move it with one finger.
+    let hold: {
+      id: string;
+      x: number;
+      y: number;
+      timer: ReturnType<typeof setTimeout>;
+      lifted: boolean;
+      grab?: XYPosition;
+      moving?: { id: string; start: XYPosition }[];
+      finger?: { x: number; y: number };
+      raf?: number;
+    } | null = null;
+    const HOLD_FROM_NOT = 'button, a, select, .react-flow__handle, .react-flow__resize-control, input[type="range"], .format-bar';
+    const cancelHold = () => {
+      if (!hold) return;
+      clearTimeout(hold.timer);
+      if (hold.raf) cancelAnimationFrame(hold.raf);
+      hold = null;
+    };
+    const flowAt = (x: number, y: number) => rf.screenToFlowPosition({ x, y });
+    const placeLifted = () => {
+      if (!hold?.lifted || !hold.finger || !hold.grab || !hold.moving) return;
+      const p = flowAt(hold.finger.x, hold.finger.y);
+      const dx = p.x - hold.grab.x;
+      const dy = p.y - hold.grab.y;
+      const moves = new Map(hold.moving.map((m) => [m.id, { x: m.start.x + dx, y: m.start.y + dy }]));
+      useStore.getState().setNodes((ns) => ns.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)));
+      const node = useStore.getState().nodes.find((n) => n.id === hold!.id);
+      if (node?.type === 'image') highlightSlot(dropTargetAt(hold.finger.x, hold.finger.y, node.id));
+    };
+    // Near the screen edge, the board scrolls along so a card can travel far.
+    const edgeScroll = () => {
+      if (!hold?.lifted || !hold.finger) return;
+      const r = el.getBoundingClientRect();
+      const EDGE = 48;
+      const speed = (d: number) => (d < EDGE ? ((EDGE - d) / EDGE) * 14 : 0);
+      const vx = speed(hold.finger.x - r.left) - speed(r.right - hold.finger.x);
+      const vy = speed(hold.finger.y - r.top) - speed(r.bottom - hold.finger.y);
+      if (vx || vy) {
+        const vp = rf.getViewport();
+        rf.setViewport({ ...vp, x: vp.x + vx, y: vp.y + vy });
+        placeLifted();
+      }
+      hold.raf = requestAnimationFrame(edgeScroll);
+    };
+    const lift = () => {
+      if (!hold) return;
+      const s = useStore.getState();
+      const node = s.nodes.find((n) => n.id === hold!.id);
+      if (!node) return cancelHold();
+      hold.lifted = true;
+      navigator.vibrate?.(12);
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      s.checkpoint();
+      // A section carries the cards inside it.
+      const kids = node.type === 'frame' ? (node.data.collapsed ? (node.data.members ?? []) : sectionMembers(node, s.nodes)) : [];
+      const ids = new Set([node.id, ...kids]);
+      hold.moving = s.nodes.filter((n) => ids.has(n.id)).map((n) => ({ id: n.id, start: n.position }));
+      hold.grab = flowAt(hold.x, hold.y);
+      hold.finger = { x: hold.x, y: hold.y };
+      useLift.setState({ id: node.id, phase: 'lifted' });
+      hold.raf = requestAnimationFrame(edgeScroll);
+    };
     let start: { dist: number; mid: XYPosition; vp: { x: number; y: number; zoom: number } } | null = null;
     // Stays on until every finger is lifted, so the finger left behind doesn't drag a card.
     let active = false;
@@ -114,8 +180,15 @@ function useTouchNavigation(
       'button, a, select, .card .nopan, .nowheel, .react-flow__handle, .react-flow__resize-control, input[type="range"]';
     const onStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
+      cancelHold();
       if (e.touches.length === 1 && !active) {
         const editing = target === document.activeElement && target.matches('input, textarea');
+        const card = target.closest('.react-flow__node') as HTMLElement | null;
+        const st = useStore.getState();
+        if (card && !editing && !st.readOnly && !useDraw.getState().tool && !target.closest(HOLD_FROM_NOT)) {
+          const t = e.touches[0];
+          hold = { id: card.dataset.id!, x: t.clientX, y: t.clientY, timer: setTimeout(lift, 350), lifted: false };
+        }
         pan =
           !editing && !useDraw.getState().tool && target.closest(PAN_FROM) && !target.closest(NOT_FROM)
             ? { x: e.touches[0].clientX, y: e.touches[0].clientY, vp: rf.getViewport(), moving: false }
@@ -130,6 +203,18 @@ function useTouchNavigation(
       start = { ...measure(e.touches), vp: rf.getViewport() };
     };
     const onMove = (e: TouchEvent) => {
+      if (hold) {
+        const t = e.touches[0];
+        if (hold.lifted && e.touches.length === 1) {
+          e.preventDefault();
+          e.stopPropagation();
+          hold.finger = { x: t.clientX, y: t.clientY };
+          placeLifted();
+          return;
+        }
+        // Moved before the hold completed: it's a pan / drag after all.
+        if (e.touches.length > 1 || Math.hypot(t.clientX - hold.x, t.clientY - hold.y) > 8) cancelHold();
+      }
       if (pan && e.touches.length === 1) {
         const dx = e.touches[0].clientX - pan.x;
         const dy = e.touches[0].clientY - pan.y;
@@ -152,6 +237,19 @@ function useTouchNavigation(
       rf.setViewport({ x: mid.x - fx * zoom, y: mid.y - fy * zoom, zoom });
     };
     const onEndTouch = (e: TouchEvent) => {
+      if (hold) {
+        const lifted = hold.lifted ? hold : null;
+        cancelHold();
+        if (lifted) {
+          e.preventDefault(); // no tap → no edit mode after a move
+          highlightSlot(null);
+          useLift.setState({ phase: 'dropped' });
+          setTimeout(() => useLift.getState().phase === 'dropped' && useLift.setState({ id: null, phase: null }), 450);
+          onLiftDrop(lifted.id, lifted.finger?.x ?? lifted.x, lifted.finger?.y ?? lifted.y);
+          pan = null;
+          return;
+        }
+      }
       if (pan) {
         if (pan.moving) {
           e.preventDefault(); // no tap → no edit mode after a pan
@@ -172,6 +270,14 @@ function useTouchNavigation(
     };
     // Safari's own page zoom gesture.
     const noGesture = (e: Event) => e.preventDefault();
+    // A long press shows the browser's menu on Android; while holding a card it means "move" instead.
+    const noMenu = (e: Event) => {
+      if (hold) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    el.addEventListener('contextmenu', noMenu, true);
     const opts = { capture: true, passive: false };
     el.addEventListener('touchstart', onStart, opts);
     el.addEventListener('touchmove', onMove, opts);
@@ -184,9 +290,14 @@ function useTouchNavigation(
       el.removeEventListener('touchend', onEndTouch, opts);
       el.removeEventListener('touchcancel', onEndTouch, opts);
       el.removeEventListener('gesturestart', noGesture);
+      el.removeEventListener('contextmenu', noMenu, true);
+      cancelHold();
     };
-  }, [ref, rf, onEnd]);
+  }, [ref, rf, onEnd, onLiftDrop]);
 }
+
+/** The card being moved by press-and-hold (for its lifted / dropped look). */
+const useLift = create<{ id: string | null; phase: 'lifted' | 'dropped' | null }>(() => ({ id: null, phase: null }));
 
 export function Canvas() {
   const {
@@ -210,21 +321,23 @@ export function Canvas() {
     fx,
   } = useStore();
   // Tag filter (matching cards stay, the rest fade back) and section fold / unfold animations.
+  const lift = useLift();
   const shownNodes = useMemo(
     () =>
       nodes.map((n) => {
         const dim = tagFilter && n.type !== 'frame' && !cardTags(n).includes(tagFilter);
         const f = fx[n.id];
-        if (!dim && !f) return n;
+        const lifted = lift.id === n.id ? lift.phase : null;
+        if (!dim && !f && !lifted) return n;
         return {
           ...n,
-          className: [dim && 'dimmed', f && `nb-${f.k}`].filter(Boolean).join(' '),
+          className: [dim && 'dimmed', f && `nb-${f.k}`, lifted && `touch-${lifted}`].filter(Boolean).join(' '),
           ...(f
             ? { style: { ...n.style, '--d': `${f.d}ms`, '--tx': `${f.tx}px`, '--ty': `${f.ty}px` } as React.CSSProperties }
             : {}),
         };
       }),
-    [nodes, tagFilter, fx],
+    [nodes, tagFilter, fx, lift],
   );
   // Arrows of cards inside folded sections are hidden too (React Flow misses some when it only
   // renders what's on screen, as on phones).
@@ -406,7 +519,25 @@ export function Canvas() {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const phone = useMemo(() => matchMedia('(max-width: 720px), (pointer: coarse)').matches, []);
-  useTouchNavigation(canvasRef, setViewport);
+  const onLiftDrop = useCallback(
+    (id: string, x: number, y: number) => {
+      const s = useStore.getState();
+      const node = s.nodes.find((n) => n.id === id);
+      if (!node) return;
+      // An image card held over a picture slot goes into it; otherwise it just lands (and is selected).
+      const slot = node.type === 'image' && (node.data.mediaId || node.data.url) ? dropTargetAt(x, y, id) : null;
+      if (slot && (slot.dataset.dropKind ?? 'image') === 'image')
+        return fillSlot(
+          slot.dataset.dropTarget!,
+          { mediaId: node.data.mediaId, url: node.data.url, caption: node.data.caption },
+          id,
+        );
+      s.selectOnly(id);
+    },
+    // fillSlot only uses the store's setters, which never change
+    [],
+  );
+  useTouchNavigation(canvasRef, setViewport, onLiftDrop);
   useDrawInput(canvasRef);
   const drawTool = useDraw((s) => s.tool);
 

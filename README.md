@@ -25,6 +25,9 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Cards: Note, List, Heading, Image, Video, Link, Scene (storyboard), Job (client, due date, fee, status), Color, Section,
   Board (boards inside boards)
 - Arrows between cards, with labels and arrowheads (right-click a connection)
+- On phones, press and hold any card (even over its text) for a moment to lift it, then drag it — it follows your finger,
+  the board scrolls at the screen edges, sections carry their cards and photos drop into scene frames; a quick swipe
+  still scrolls and a tap still edits
 - Right-click menus for cards, connections and the canvas; on touch screens a selected card shows duplicate / delete / more
 - Draw (✏️ in the toolbar, or P): pen, highlighter, line, arrow, rectangle, ellipse, text and eraser, in 8 colors and 3
   sizes — over cards too. Shift snaps lines to 15° and shapes to squares / circles. Drawings are cards: move, resize,
