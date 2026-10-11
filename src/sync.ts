@@ -276,11 +276,24 @@ export async function updateClientComment(id: string, patch: { done?: boolean } 
 // ---------- Media ----------
 
 let uploading = false;
+let uploadAgain = false;
+let uploadRetry = 0;
 const MAX_FREE_UPLOAD = 50 * 1024 * 1024;
 
+/**
+ * Sends photos and videos that are only on this device to the cloud, so other devices and share
+ * links can show them. Files added while a round is running get their own round right after; a
+ * file that fails doesn't hold up the rest and is tried again a little later.
+ */
 export async function uploadPendingMedia() {
-  if (!supabase || !useCloud.getState().user || uploading) return;
+  if (!supabase || !useCloud.getState().user) return;
+  if (uploading) {
+    uploadAgain = true;
+    return;
+  }
   uploading = true;
+  clearTimeout(uploadRetry);
+  let retry = false;
   try {
     const done = new Set(ls.get<string[]>('uploaded', []));
     const failed = new Set(ls.get<string[]>('uploadFailed', []));
@@ -288,29 +301,42 @@ export async function uploadPendingMedia() {
     useCloud.setState({ uploads: todo.length });
     for (const id of todo) {
       const blob = await db.getMediaBlob(id);
-      if (!blob) continue;
-      const { error } = await supabase.storage
-        .from('media')
-        .upload(id, blob, { contentType: blob.type || undefined, upsert: false, cacheControl: '31536000' });
-      const exists = error && /exists|duplicate/i.test(error.message);
-      if (!error || exists) {
-        done.add(id);
-        ls.set('uploaded', [...done]);
-      } else if (blob.size > MAX_FREE_UPLOAD || /size|too large|413/i.test(error.message)) {
+      if (!blob) {
+        // Lost by the browser: nothing left to send.
         failed.add(id);
         ls.set('uploadFailed', [...failed]);
-        toast(`A file (${Math.round(blob.size / 1048576)} MB) is over the cloud size limit. It stays on this device only.`);
+        toast('A photo on this device could not be read anymore. Add it again to put it in the cloud.');
       } else {
-        throw error;
+        const { error } = await supabase.storage
+          .from('media')
+          .upload(id, blob, { contentType: blob.type || undefined, upsert: false, cacheControl: '31536000' });
+        const exists = error && /exists|duplicate/i.test(error.message);
+        if (!error || exists) {
+          done.add(id);
+          ls.set('uploaded', [...done]);
+        } else if (blob.size > MAX_FREE_UPLOAD || /size|too large|413/i.test(error.message)) {
+          failed.add(id);
+          ls.set('uploadFailed', [...failed]);
+          toast(`A file (${Math.round(blob.size / 1048576)} MB) is over the cloud size limit. It stays on this device only.`);
+        } else {
+          retry = true;
+          useCloud.setState({ error: `Upload failed: ${error.message}` });
+        }
       }
-      useCloud.setState({ uploads: useCloud.getState().uploads - 1 });
+      useCloud.setState({ uploads: Math.max(0, useCloud.getState().uploads - 1) });
     }
   } catch (e) {
+    retry = true;
     useCloud.setState({ error: (e as Error).message });
   } finally {
     uploading = false;
     useCloud.setState({ uploads: 0 });
   }
+  if (uploadAgain) {
+    uploadAgain = false;
+    return uploadPendingMedia();
+  }
+  if (retry) uploadRetry = window.setTimeout(uploadPendingMedia, 20_000);
 }
 
 // ---------- Auth ----------
@@ -370,6 +396,8 @@ export function startSync() {
     schedule(300);
   });
   db.dbEvents.addEventListener('media', () => setTimeout(uploadPendingMedia, 500));
+  window.addEventListener('online', () => uploadPendingMedia());
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && uploadPendingMedia());
 
   // Opening a board shows the latest client comments for it.
   useStore.subscribe((s, p) => s.currentId !== p.currentId && loadClientComments());

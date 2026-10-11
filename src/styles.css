@@ -1411,6 +1411,37 @@ a.side-btn {
 .media-frame video {
   object-fit: contain;
 }
+.media-missing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
+  background: var(--sunken);
+}
+.media-missing svg {
+  color: var(--brand);
+  animation: missing-pulse 1.8s ease-in-out infinite;
+}
+.media-missing b {
+  color: var(--text);
+  font-size: 13px;
+}
+.media-missing span {
+  max-width: 240px;
+}
+@keyframes missing-pulse {
+  50% {
+    opacity: 0.45;
+    transform: translateY(-2px);
+  }
+}
 .embed-poster {
   position: relative;
   flex: 1;

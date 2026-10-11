@@ -1,7 +1,7 @@
 import type { NodeProps } from '@xyflow/react';
-import { ExternalLink, Image as ImageIcon, Link2, Maximize2, Upload } from 'lucide-react';
-import { useState } from 'react';
-import { hostname, saveMedia, useMediaUrl, usePreviewUrl, youtubeId } from '../db';
+import { CloudUpload, ExternalLink, Image as ImageIcon, Link2, Maximize2, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { hostname, saveMedia, useMediaUrl, usePreview, youtubeId } from '../db';
 import { useStore } from '../store';
 import type { CardNode } from '../types';
 import { Shell } from './Shell';
@@ -40,6 +40,27 @@ export function EmptyMedia({ id, kind }: { id: string; kind: 'image' | 'video' }
   );
 }
 
+/** The photo isn't on this device or in the cloud yet: usually the device it was added on is still uploading it. */
+function MissingMedia({ id }: { id: string }) {
+  const updateData = useStore((s) => s.updateData);
+  const replace = async () => {
+    const file = await pickFile('image/*');
+    if (file) updateData(id, { mediaId: await saveMedia(file), url: undefined });
+  };
+  return (
+    <div className="media-missing">
+      <CloudUpload size={22} />
+      <b>Photo not here yet</b>
+      <span>
+        It's still uploading from the device it was added on. Open Notebase there for a moment — it will appear here by itself.
+      </span>
+      <button className="nodrag btn" onClick={replace}>
+        <Upload size={13} /> Choose the photo again
+      </button>
+    </div>
+  );
+}
+
 export function Caption({ id, value }: { id: string; value?: string }) {
   const updateData = useStore((s) => s.updateData);
   return (
@@ -54,7 +75,21 @@ export function Caption({ id, value }: { id: string; value?: string }) {
 
 export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
   const src = useMediaUrl(data.mediaId, data.url);
-  const preview = usePreviewUrl(data.mediaId, data.url);
+  const { src: preview, missing } = usePreview(data.mediaId, data.url);
+  const [broken, setBroken] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  // A cloud copy that failed to load (not there yet, or the connection dropped) is tried again.
+  useEffect(() => {
+    setBroken(false);
+    setAttempt(0);
+  }, [preview]);
+  useEffect(() => {
+    if (!broken || !preview?.startsWith('http') || attempt > 8) return;
+    const t = setTimeout(() => (setAttempt((a) => a + 1), setBroken(false)), 5000 * (attempt + 1));
+    return () => clearTimeout(t);
+  }, [broken, preview, attempt]);
+  const shown =
+    preview && attempt && preview.startsWith('http') ? `${preview}${preview.includes('?') ? '&' : '?'}r=${attempt}` : preview;
   const setLightbox = useStore((s) => s.setLightbox);
   const has = data.mediaId || data.url;
   return (
@@ -77,7 +112,13 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
       {has ? (
         <>
           <div className="media-frame" onDoubleClick={() => src && setLightbox({ src, kind: 'image' })}>
-            {preview && <img src={preview} alt={data.caption ?? ''} draggable={false} decoding="async" />}
+            {missing || broken ? (
+              <MissingMedia id={id} />
+            ) : (
+              shown && (
+                <img src={shown} alt={data.caption ?? ''} draggable={false} decoding="async" onError={() => setBroken(true)} />
+              )
+            )}
           </div>
           <Caption id={id} value={data.caption} />
         </>

@@ -26,14 +26,36 @@ export const deleteBoard = async (id: string, silent = false) => {
   if (!silent) emit('delete', id);
 };
 
+// Files are stored as raw bytes, not as Blob objects: iOS Safari loses the contents of Blobs kept
+// in IndexedDB ("WebKitBlobResource error"), so a photo could neither show nor upload later.
+interface StoredFile {
+  type: string;
+  bytes: ArrayBuffer;
+}
+const isStored = (v: unknown): v is StoredFile => !!v && typeof v === 'object' && (v as StoredFile).bytes instanceof ArrayBuffer;
+const toStored = async (blob: Blob): Promise<StoredFile> => ({ type: blob.type, bytes: await blob.arrayBuffer() });
+const fromStored = (v: unknown): Blob | undefined =>
+  isStored(v) ? new Blob([v.bytes], { type: v.type }) : v instanceof Blob ? v : undefined;
+
 export async function saveMedia(file: Blob): Promise<string> {
   const id = nanoid(21);
-  await set(`media:${id}`, file);
+  await set(`media:${id}`, await toStored(file));
   emit('media', id);
   return id;
 }
 
-export const getMediaBlob = (id: string) => get<Blob>(`media:${id}`);
+/** A file kept on this device. Older copies saved as Blobs are converted the first time they're read. */
+export async function getMediaBlob(id: string): Promise<Blob | undefined> {
+  const value = await get(`media:${id}`);
+  if (!(value instanceof Blob)) return fromStored(value);
+  try {
+    const stored = { type: value.type, bytes: await value.arrayBuffer() };
+    await set(`media:${id}`, stored).catch(() => {});
+    return fromStored(stored);
+  } catch {
+    return undefined; // the browser lost its contents; the cloud copy is used if there is one
+  }
+}
 export const mediaKeys = async () =>
   (await keys())
     .map(String)
@@ -45,7 +67,7 @@ const urlCache = new Map<string, string>();
 export async function getMediaUrl(id: string): Promise<string | null> {
   const cached = urlCache.get(id);
   if (cached) return cached;
-  const blob = await get<Blob>(`media:${id}`);
+  const blob = await getMediaBlob(id);
   // Not on this device (added elsewhere or in a shared board): use the cloud copy.
   if (!blob) return cloudConfigured ? mediaPublicUrl(id) : null;
   const url = URL.createObjectURL(blob);
@@ -102,20 +124,22 @@ async function downscale(blob: Blob): Promise<Blob | null> {
 }
 
 async function makePreview(id: string): Promise<string | null> {
-  const saved = await get<Blob | 'original'>(`thumb:${id}`);
+  const saved = await get(`thumb:${id}`);
   if (saved === 'original') return getMediaUrl(id);
-  if (saved instanceof Blob) return URL.createObjectURL(saved);
-  let blob = await get<Blob>(`media:${id}`);
+  const thumb = fromStored(saved);
+  if (thumb) return URL.createObjectURL(thumb);
+  let blob = await getMediaBlob(id);
   if (!blob && cloudConfigured) {
     const res = await fetch(mediaPublicUrl(id)).catch(() => null);
     if (res?.ok) blob = await res.blob();
   }
-  if (!blob) return getMediaUrl(id);
+  // Not here and not in the cloud (yet): the device it was added on may still be uploading it.
+  if (!blob) return null;
   // One at a time, so several big photos are never decoded at once.
   const job = previewQueue.then(() => downscale(blob!));
   previewQueue = job;
   const small = await job;
-  await set(`thumb:${id}`, small ?? 'original').catch(() => {});
+  await set(`thumb:${id}`, small ? await toStored(small) : 'original').catch(() => {});
   return small ? URL.createObjectURL(small) : getMediaUrl(id);
 }
 
@@ -135,18 +159,41 @@ export async function getPreviewUrl(id: string): Promise<string | null> {
   return job;
 }
 
+/**
+ * Preview of an image for a card. `missing` is true while the file is on neither this device nor
+ * the cloud (e.g. the phone it was added on hasn't uploaded it yet); it keeps checking until it arrives.
+ */
 export function usePreviewUrl(mediaId?: string, url?: string) {
+  return usePreview(mediaId, url).src;
+}
+
+export function usePreview(mediaId?: string, url?: string) {
   const [src, setSrc] = useState<string | null>(url ?? (mediaId ? (previewCache.get(mediaId) ?? null) : null));
+  const [missing, setMissing] = useState(false);
   useEffect(() => {
+    setMissing(false);
     if (url) return setSrc(url);
     if (!mediaId) return setSrc(null);
     let alive = true;
-    getPreviewUrl(mediaId).then((u) => alive && setSrc(u));
+    let timer = 0;
+    let wait = 4000;
+    const load = () =>
+      getPreviewUrl(mediaId).then((u) => {
+        if (!alive) return;
+        setSrc(u);
+        setMissing(!u);
+        if (!u) {
+          timer = window.setTimeout(load, wait);
+          wait = Math.min(wait * 1.6, 60_000);
+        }
+      });
+    load();
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [mediaId, url]);
-  return src;
+  return { src, missing };
 }
 
 const blobToDataUrl = (blob: Blob) =>
@@ -164,7 +211,8 @@ export async function exportWorkspace(): Promise<Blob> {
     const key = String(k);
     if (key.startsWith('thumb:')) continue; // rebuilt on demand
     const value = await get(key);
-    data[key] = value instanceof Blob ? { __blob: await blobToDataUrl(value) } : value;
+    const blob = key.startsWith('media:') ? fromStored(value) : undefined;
+    data[key] = blob ? { __blob: await blobToDataUrl(blob) } : value;
   }
   return new Blob([JSON.stringify({ app: 'notebase', version: 1, data })], { type: 'application/json' });
 }
@@ -174,7 +222,7 @@ export async function importWorkspace(file: File) {
   if (parsed?.app !== 'notebase') throw new Error('Not a Notebase backup file');
   for (const [key, value] of Object.entries<any>(parsed.data)) {
     if (value && typeof value === 'object' && '__blob' in value) {
-      await set(key, await (await fetch(value.__blob)).blob());
+      await set(key, await toStored(await (await fetch(value.__blob)).blob()));
     } else {
       await set(key, value);
     }
