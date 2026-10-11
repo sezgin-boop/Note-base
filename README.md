@@ -74,6 +74,8 @@ It works fully without the cloud; everything is then stored only in the browser 
 
 **Capture & export**
 
+- Several photos at once: choose many in an image card's _Upload images_ (or drop them on the board) and they line
+  up in a grid, one undo step for all
 - Quick capture (Q, or the ⚡ button on phones): type or dictate an idea, add a photo or a link — it lands in your
   **Inbox** board. On Android you can also share links from other apps straight into Notebase.
 - Extract a color palette from any image (right-click → _Extract color palette_)

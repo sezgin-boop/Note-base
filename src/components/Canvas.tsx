@@ -15,7 +15,7 @@ import { addTyped } from '../actions';
 import { importFromAi } from '../ai/apply';
 import { hasNotebaseBlock } from '../ai/importer';
 import { isImageUrl, isVideoUrl, saveMedia } from '../db';
-import { ImageNode, LinkNode } from '../nodes/MediaNodes';
+import { addMediaFiles, ImageNode, LinkNode } from '../nodes/MediaNodes';
 import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
@@ -54,14 +54,14 @@ export function useCreateFrom() {
   const addCard = useStore((s) => s.addCard);
   const fromFiles = useCallback(
     async (files: File[], at: XYPosition) => {
-      let offset = 0;
-      for (const file of files) {
+      if (files.length === 1) {
+        const [file] = files;
         const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
-        if (!kind) continue;
-        const mediaId = await saveMedia(file);
-        addCard(kind, { x: at.x + offset, y: at.y + offset }, { mediaId, caption: file.name.replace(/\.[^.]+$/, '') });
-        offset += 30;
+        if (kind) addCard(kind, at, { mediaId: await saveMedia(file), caption: file.name.replace(/\.[^.]+$/, '') });
+        return;
       }
+      // Several at once land in a grid instead of a pile.
+      await addMediaFiles(files, at);
     },
     [addCard],
   );

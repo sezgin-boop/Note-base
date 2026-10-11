@@ -1,4 +1,5 @@
-import type { NodeProps } from '@xyflow/react';
+import type { NodeProps, XYPosition } from '@xyflow/react';
+import { makeCard, SIZES } from '../cards';
 import { CloudUpload, ExternalLink, Image as ImageIcon, Link2, Maximize2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { hostname, saveMedia, useMediaUrl, usePreview, youtubeId } from '../db';
@@ -7,26 +8,65 @@ import type { CardNode } from '../types';
 import { Shell } from './Shell';
 
 export function pickFile(accept: string): Promise<File | null> {
+  return pickFiles(accept, false).then((files) => files[0] ?? null);
+}
+
+export function pickFiles(accept: string, multiple = true): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
-    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.multiple = multiple;
+    input.onchange = () => resolve([...(input.files ?? [])]);
     input.click();
   });
+}
+
+const GAP = 24;
+
+/**
+ * Photos and videos → cards, laid out in a grid (up to 4 across) starting at `at`. With `intoId`
+ * the first file fills that (empty) card and the rest line up beside it. One undo step for all.
+ */
+export async function addMediaFiles(files: File[], at: XYPosition, intoId?: string) {
+  const media = files
+    .map((file) => ({ file, kind: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null }))
+    .filter((m): m is { file: File; kind: 'image' | 'video' } => !!m.kind);
+  if (!media.length) return;
+  const saved = [];
+  for (const m of media) saved.push({ ...m, mediaId: await saveMedia(m.file), caption: m.file.name.replace(/\.[^.]+$/, '') });
+  const s = useStore.getState();
+  const into = intoId ? s.nodes.find((n) => n.id === intoId) : undefined;
+  const cellW = Math.max(...saved.map((m) => SIZES[m.kind]?.width ?? 280), into?.width ?? 0) + GAP;
+  const cellH = Math.max(...saved.map((m) => SIZES[m.kind]?.height ?? 240), into?.height ?? into?.measured?.height ?? 0) + GAP;
+  const cols = Math.min(4, Math.ceil(Math.sqrt(saved.length)));
+  const origin = into?.position ?? at;
+  const cards = saved.map((m, i) =>
+    makeCard(
+      m.kind,
+      { x: origin.x + (i % cols) * cellW, y: origin.y + Math.floor(i / cols) * cellH },
+      { mediaId: m.mediaId, caption: m.caption },
+    ),
+  );
+  if (into && saved[0].kind === into.type) {
+    s.updateData(into.id, { mediaId: saved[0].mediaId, caption: saved[0].caption, url: undefined });
+    cards.shift();
+  }
+  if (cards.length) s.insertCards(cards, []);
 }
 
 export function EmptyMedia({ id, kind }: { id: string; kind: 'image' | 'video' }) {
   const updateData = useStore((s) => s.updateData);
   const [url, setUrl] = useState('');
   const upload = async () => {
+    if (kind === 'image') return addMediaFiles(await pickFiles('image/*'), { x: 0, y: 0 }, id);
     const file = await pickFile(`${kind}/*`);
     if (file) updateData(id, { mediaId: await saveMedia(file), caption: file.name });
   };
   return (
     <div className="media-empty" data-drop-target={id} data-drop-kind={kind}>
       <button className="nodrag btn" onClick={upload}>
-        <Upload size={14} /> {kind === 'image' ? 'Upload image' : 'Upload video'}
+        <Upload size={14} /> {kind === 'image' ? 'Upload images' : 'Upload video'}
       </button>
       <span className="muted">or paste a link</span>
       <input
