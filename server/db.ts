@@ -131,4 +131,25 @@ export async function uploadMedia(id: string, data: ArrayBuffer, type: string) {
   if (!res.ok) throw new Error(`Upload failed (${res.status}): ${(await res.text()).slice(0, 160)}`);
 }
 
+/**
+ * A one-time address the browser can upload a file to directly (no size limit of our own functions;
+ * the bucket's limit applies). Returns the absolute URL to PUT the file to.
+ */
+export async function signedUploadUrl(id: string): Promise<string> {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/upload/sign/media/${id}`, {
+    method: 'POST',
+    headers: { ...keyHeaders(SUPABASE_SECRET_KEY), 'content-type': 'application/json' },
+    body: '{}',
+  });
+  if (!res.ok) throw new Error(`Couldn't prepare the upload (${res.status}): ${(await res.text()).slice(0, 160)}`);
+  const { url } = await res.json();
+  return `${SUPABASE_URL}/storage/v1${url}`;
+}
+
+/** Whether an uploaded file is really there (before a card points at it). */
+export async function mediaExists(id: string): Promise<boolean> {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/media/${id}`, { method: 'HEAD' });
+  return res.ok;
+}
+
 export const mediaUrl = (id: string) => `${SUPABASE_URL}/storage/v1/object/public/media/${id}`;

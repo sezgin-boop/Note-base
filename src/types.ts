@@ -66,6 +66,8 @@ export interface CardData extends Record<string, unknown> {
   versions?: VideoVersion[];
   versionId?: string;
   approvals?: Approval[];
+  /** Cards uploaded through the same upload link (they line up together). */
+  batch?: string;
   /** Card style: a preset, a color / gradient or a picture as the whole card's background. */
   skin?: Skin;
   /** Custom header text replacing the card type ("Note", "Scene 01"…). */

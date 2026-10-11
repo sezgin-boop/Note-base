@@ -10,6 +10,7 @@ import type { BoardContent, CardData, CardEdge, CardNode, CardType, ProjectStatu
 import { STATUS_LABELS } from '../src/types';
 import { boardComments, changeBoard, getBoard, insertBoard, listBoards, mediaUrl, type BoardRow } from './db';
 import { fetchMedia, type Fetched } from './media';
+import { seal } from './seal';
 
 export interface ToolContext {
   uid: string;
@@ -64,7 +65,7 @@ const sizeOf = (n: CardNode) => ({
 });
 
 /** Where new cards go: to the right of everything on the board, top-aligned. */
-function freeSpot(content: BoardContent) {
+export function freeSpot(content: BoardContent) {
   const nodes = content.nodes ?? [];
   if (!nodes.length) return { x: 0, y: 0 };
   const right = Math.max(...nodes.map((n) => n.position.x + sizeOf(n).w));
@@ -577,6 +578,33 @@ const searchTool: Tool = {
   },
 };
 
+const uploadLinkTool: Tool = {
+  name: 'get_upload_link',
+  title: 'Get an upload link for photos / videos',
+  description:
+    'Photos and videos the user attaches in the chat cannot be passed to this connector directly. This makes a link ' +
+    '(valid 60 minutes) that puts uploaded images and videos onto a board as cards. If you have a code sandbox that holds ' +
+    'the files and can reach the internet, upload each one yourself with the curl command from the result. Otherwise ' +
+    'give the user the page link: they open it, pick the files from their phone or computer, and the cards appear.',
+  inputSchema: { type: 'object', properties: { board: BOARD_ARG }, required: ['board'] },
+  async run(args, ctx) {
+    const meta = await resolveBoard(ctx, args.board);
+    const token = await seal({ t: 'upload', uid: ctx.uid, board: meta.id, exp: Math.floor(Date.now() / 1000) + 3600 });
+    const link = `${ctx.origin}/api/upload?t=${encodeURIComponent(token)}`;
+    return [
+      `Upload link for "${meta.name}" (valid 60 minutes).`,
+      '',
+      `For the user (open on phone or computer, pick photos / videos, up to 50 MB each):`,
+      link,
+      '',
+      'From a code sandbox, one request per file (max 4 MB each — shrink bigger photos first, e.g. to 2560 px JPEG):',
+      `curl -sS -X POST --data-binary @"/path/to/photo.jpg" -H "content-type: image/jpeg" "${link}&name=photo.jpg"`,
+      'Optional: &caption=… . Each file becomes an image / video card; files from this link are laid out together.',
+      `Open the board: ${boardLink(ctx, meta.id)}`,
+    ].join('\n');
+  },
+};
+
 export const TOOLS: Tool[] = [
   listBoardsTool,
   readBoardTool,
@@ -586,10 +614,12 @@ export const TOOLS: Tool[] = [
   updateCardTool,
   deleteCardsTool,
   createBoardTool,
+  uploadLinkTool,
 ];
 
 export const INSTRUCTIONS =
   "Notebase is the user's visual canvas for notes, plans, storyboards, moodboards, client jobs and video reviews. " +
   'Start with list_boards (or search), read_board before editing, then add_cards / add_media / update_card. ' +
   "Lay out storyboards as scene cards connected with arrows in order. Changes appear in the user's app within " +
-  'about 30 seconds; share the "Open" link from the result so they can jump to the board.';
+  'about 30 seconds; share the "Open" link from the result so they can jump to the board. Photos or videos the user ' +
+  'attaches in the chat: call get_upload_link and upload them from your code sandbox, or give the user the link.';

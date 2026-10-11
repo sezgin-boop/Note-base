@@ -146,8 +146,12 @@ Changes show up in the app within about 30 seconds; Claude also gives you a link
 
 What it can do: `list_boards`, `read_board`, `search`, `add_cards`, `add_media` (images and videos from links are copied
 into your storage; YouTube / Vimeo become video cards; other pages become link cards), `update_card`, `delete_cards`,
-`create_board`. Photos you upload into a Claude chat can't be passed on (Claude only sees them); use links, or add
-them with Quick capture.
+`create_board`, `get_upload_link`.
+
+**Photos from the chat:** Claude can't hand files from a chat to a connector, so `get_upload_link` makes a link (valid
+an hour) for one board. Claude's code sandbox can upload the files to it directly when it is allowed to reach your site
+(Claude → Settings → Capabilities → code execution network access); otherwise Claude gives you the link — open it, pick
+the photos or videos (up to 50 MB each) and they appear on the board, laid out together.
 
 **Security:** signing in only works for Claude's own addresses, and every action is limited to your account. Removing the
 connector in Claude disconnects it; to cut off every connected app at once, create a new secret key in Supabase, put it

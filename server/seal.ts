@@ -26,7 +26,9 @@ export type Sealed =
   | { t: 'client'; r: string[]; n?: string }
   | { t: 'code'; uid: string; cc: string; ru: string; cid: string; exp: number }
   | { t: 'access'; uid: string; exp: number }
-  | { t: 'refresh'; uid: string; exp: number };
+  | { t: 'refresh'; uid: string; exp: number }
+  /** A link that lets photos / videos be uploaded onto one board for a while. */
+  | { t: 'upload'; uid: string; board: string; exp: number };
 
 export async function seal(payload: Sealed): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
