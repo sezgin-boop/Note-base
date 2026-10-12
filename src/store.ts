@@ -33,6 +33,8 @@ export type Panel =
   | 'export'
   | 'ai'
   | 'style'
+  | 'templates'
+  | 'phone'
   | null;
 export type Theme = 'system' | 'dark' | 'light';
 export type Palette = 'violet' | 'fire' | 'ocean' | 'forest' | 'rose' | 'gold' | 'aurora' | 'mono';

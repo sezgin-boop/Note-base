@@ -1,5 +1,6 @@
 import { ThemePicker } from './ThemePicker';
 import {
+  Share,
   Briefcase,
   CalendarDays,
   ChevronRight,
@@ -224,7 +225,7 @@ export function Sidebar() {
               <small>Start from scratch</small>
             </span>
           </button>
-          {TEMPLATES.map((t) => (
+          {TEMPLATES.filter((t) => ['reels', 'youtube', 'brand'].includes(t.id)).map((t) => (
             <button key={t.id} onClick={() => newBoard(t.id, t.name, t.icon)}>
               <span className="t-icon">{t.icon}</span>
               <span>
@@ -233,6 +234,18 @@ export function Sidebar() {
               </span>
             </button>
           ))}
+          <button
+            onClick={() => {
+              setMenu(false);
+              setPanel('templates');
+            }}
+          >
+            <span className="t-icon">🗂️</span>
+            <span>
+              <b>All templates…</b>
+              <small>{TEMPLATES.length} templates — or add one to the open board</small>
+            </span>
+          </button>
         </div>
       )}
       <div className="tree">
@@ -253,6 +266,9 @@ export function Sidebar() {
               {user ? user.email : 'Cloud sync'}
               <small>{user ? <SyncLabel /> : cloudConfigured ? 'Sign in — same boards everywhere' : 'Off'}</small>
             </span>
+          </button>
+          <button className="side-btn" onClick={() => setPanel('phone')}>
+            <Share size={15} /> Save from your phone
           </button>
           {canInstall && (
             <button className="side-btn" onClick={() => setPanel('install')}>

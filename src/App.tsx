@@ -18,12 +18,40 @@ import { Canvas } from './components/Canvas';
 import { JobsPanel, Lightbox, SearchPalette, Topbar } from './components/Panels';
 import { Sidebar } from './components/Sidebar';
 import { TOOLS, Toolbar, useAddAtCenter } from './components/Toolbar';
+import { TemplatesDialog } from './components/Templates';
+import { PhoneCaptureDialog } from './components/PhoneCapture';
 import { justCreated, useStore } from './store';
 
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 
+/**
+ * Dictation apps (Wispr Flow…) may put text into the focused field while the browser is in the
+ * background, without the usual typing events. When the page is back, nudge that field so the app
+ * picks up what's in it (an "input" event is ignored when nothing changed).
+ */
+function useCatchDictation() {
+  useEffect(() => {
+    const nudge = () =>
+      [0, 150, 600].forEach((ms) =>
+        setTimeout(() => {
+          const el = document.activeElement;
+          if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        }, ms),
+      );
+    const onVisible = () => document.visibilityState === 'visible' && nudge();
+    window.addEventListener('focus', nudge);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', nudge);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+}
+
 function Shortcuts() {
+  useCatchDictation();
   const addAtCenter = useAddAtCenter();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -189,6 +217,8 @@ export default function App() {
       {panel === 'details' && <DetailsDialog />}
       {panel === 'ai' && <AiDialog />}
       {panel === 'style' && <StylePanel />}
+      {panel === 'templates' && <TemplatesDialog />}
+      {panel === 'phone' && <PhoneCaptureDialog />}
       <Lightbox />
       <Toasts />
       {!readOnly && <Shortcuts />}

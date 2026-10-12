@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid';
 import {
   Background,
   BackgroundVariant,
@@ -406,17 +407,25 @@ export function Canvas() {
       const text = e.clipboardData?.getData('text/plain');
       if (!text) return;
       e.preventDefault();
-      // With one note (or heading) selected, the text goes into it, like typing would. That's also
-      // where dictation apps such as Wispr Flow paste what you said.
+      // With one note, heading, scene or list selected, the text goes into it, like typing would.
+      // That's also where dictation apps such as Wispr Flow paste what you said.
       const s = useStore.getState();
       const sel = s.nodes.filter((n) => n.selected);
-      const target = sel.length === 1 && (sel[0].type === 'note' || sel[0].type === 'heading') ? sel[0] : null;
+      const target = sel.length === 1 && ['note', 'heading', 'scene', 'todo'].includes(sel[0].type!) ? sel[0] : null;
       if (target && !/^https?:\/\/\S+$/.test(text.trim())) {
-        const prev = target.data.text ?? '';
         s.checkpoint();
-        s.updateData(target.id, {
-          text: prev.trim() ? `${prev.replace(/\s+$/, '')}${target.type === 'note' ? '\n' : ' '}${text.trim()}` : text.trim(),
-        });
+        if (target.type === 'todo') {
+          const items = text
+            .split(/\r?\n/)
+            .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+            .filter(Boolean)
+            .map((t) => ({ id: nanoid(6), text: t, done: false }));
+          s.updateData(target.id, { items: [...(target.data.items ?? []).filter((i) => i.text.trim()), ...items] });
+        } else {
+          const prev = target.data.text ?? '';
+          const sep = target.type === 'heading' ? ' ' : '\n';
+          s.updateData(target.id, { text: prev.trim() ? `${prev.replace(/\s+$/, '')}${sep}${text.trim()}` : text.trim() });
+        }
         return;
       }
       fromText(text, at);

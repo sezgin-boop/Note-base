@@ -420,13 +420,25 @@ export function RichText({
         onChange={onChange}
         onBlur={() => {
           // Switching to another app (a dictation tool like Wispr Flow, the keyboard's voice input…)
-          // also blurs the field: stay in editing mode so the text can still land here when it returns.
-          if (!document.hasFocus()) {
+          // also blurs the field. Stay in editing mode and take the focus back on return, so the
+          // dictated text lands here; leave only when something else on the page is picked.
+          if (!document.hasFocus() || document.visibilityState === 'hidden') {
             const back = () =>
               setTimeout(() => {
-                if (document.activeElement !== ref.current) setEditing(false);
-              }, 200);
+                const el = ref.current;
+                const now = document.activeElement;
+                if (!el) return;
+                if (now && now !== document.body && now !== el) setEditing(false);
+                else el.focus({ preventScroll: true });
+              }, 60);
             window.addEventListener('focus', back, { once: true });
+            // If the focus can't be taken back (iOS), the next tap outside the field closes it.
+            const outside = (e: PointerEvent) => {
+              if (ref.current && ref.current.contains(e.target as Node)) return;
+              window.removeEventListener('pointerdown', outside, true);
+              if (document.activeElement !== ref.current) setEditing(false);
+            };
+            window.addEventListener('pointerdown', outside, true);
             return;
           }
           setEditing(false);

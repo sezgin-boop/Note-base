@@ -80,6 +80,14 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Photo galleries: an image card or a scene frame holds several photos — pick many at once, add more with ＋, or drop
   photos (or another image card) onto it — and flips through them with the arrows, the dots or ← / →. Several files
   dropped on empty board space line up in a grid
+- Templates (＋ next to Boards → _All templates…_, or right-click the board → _Template…_): Reels / TikTok script,
+  YouTube video, video production, brand deal, client job, photo / video shoot, content pipeline, idea bank and
+  moodboard — as a new board or added to the open one
+- Save from your phone (sidebar → _Save from your phone_): share a link, text or photo from any app into the Inbox.
+  Android: the installed app is in the share menu. iPhone: a Shortcut posts to a personal link (`/api/capture`,
+  needs cloud sync and `SUPABASE_SERVICE_ROLE_KEY`); making a new link switches the old one off
+- Dictation apps (Wispr Flow…) keep working when they take the focus away for a moment: the field stays open, takes the
+  focus back and picks up text written while the page was in the background
 - Quick capture (Q, or the ⚡ button on phones): type or dictate an idea, add a photo or a link — it lands in your
   **Inbox** board. On Android you can also share links from other apps straight into Notebase.
 - Extract a color palette from any image (right-click → _Extract color palette_)

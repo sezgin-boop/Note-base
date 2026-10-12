@@ -2,7 +2,7 @@
 // `user_id = uid` here, because the secret key bypasses the row-level security the app relies on.
 
 import type { BoardContent } from '../src/types';
-import { keyHeaders, SUPABASE_SECRET_KEY, SUPABASE_URL } from './env';
+import { keyHeaders, SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY, SUPABASE_URL } from './env';
 
 export interface BoardRow {
   id: string;
@@ -153,3 +153,36 @@ export async function mediaExists(id: string): Promise<boolean> {
 }
 
 export const mediaUrl = (id: string) => `${SUPABASE_URL}/storage/v1/object/public/media/${id}`;
+
+// ---------- Auth (for the phone capture link) ----------
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+  app_metadata?: Record<string, unknown>;
+}
+
+/** The signed-in user behind an app session token (null if the token isn't valid). */
+export async function userFromSession(accessToken: string): Promise<AuthUser | null> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: SUPABASE_ANON_KEY || SUPABASE_SECRET_KEY, authorization: `Bearer ${accessToken}` },
+  });
+  return res.ok ? ((await res.json()) as AuthUser) : null;
+}
+
+const admin = (uid: string, init: RequestInit = {}) =>
+  fetch(`${SUPABASE_URL}/auth/v1/admin/users/${enc(uid)}`, {
+    ...init,
+    headers: { ...keyHeaders(SUPABASE_SECRET_KEY), 'content-type': 'application/json', ...(init.headers ?? {}) },
+  });
+
+export async function adminUser(uid: string): Promise<AuthUser | null> {
+  const res = await admin(uid);
+  return res.ok ? ((await res.json()) as AuthUser) : null;
+}
+
+/** Merge values into the user's app_metadata (which only the server can change). */
+export async function setAppMetadata(uid: string, values: Record<string, unknown>) {
+  const res = await admin(uid, { method: 'PUT', body: JSON.stringify({ app_metadata: values }) });
+  if (!res.ok) throw new Error(`Couldn't update the account (${res.status})`);
+}

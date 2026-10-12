@@ -2,13 +2,113 @@ import { nanoid } from 'nanoid';
 import { makeCard } from './cards';
 import type { BoardContent, CardData, CardEdge, CardNode, CardType } from './types';
 
-export type TemplateId = 'welcome' | 'video' | 'calendar' | 'moodboard' | 'client';
+export type TemplateId =
+  | 'welcome'
+  | 'reels'
+  | 'youtube'
+  | 'video'
+  | 'brand'
+  | 'client'
+  | 'calendar'
+  | 'ideas'
+  | 'shoot'
+  | 'moodboard';
 
-export const TEMPLATES: { id: Exclude<TemplateId, 'welcome'>; name: string; icon: string; desc: string }[] = [
-  { id: 'video', name: 'Video production', icon: '🎬', desc: 'Idea → script → storyboard → edit' },
-  { id: 'calendar', name: 'Content pipeline', icon: '🗓️', desc: 'Ideas, to shoot, editing, published' },
-  { id: 'moodboard', name: 'Moodboard', icon: '🎨', desc: 'Palette, references, typography' },
-  { id: 'client', name: 'Client job', icon: '💼', desc: 'Brief, deliverables, revisions' },
+export interface TemplateInfo {
+  id: Exclude<TemplateId, 'welcome'>;
+  name: string;
+  icon: string;
+  desc: string;
+  /** What's on it, shown in the template gallery. */
+  inside: string[];
+  group: 'Create' | 'Work' | 'Plan';
+}
+
+export const TEMPLATES: TemplateInfo[] = [
+  {
+    id: 'reels',
+    name: 'Reels / TikTok script',
+    icon: '📱',
+    desc: 'Hook options, a 30-second beat-by-beat script, caption and a posting checklist',
+    inside: [
+      '3 hook styles',
+      '5 scenes: hook → problem → value → proof → CTA',
+      'On-screen text',
+      'Caption & hashtags',
+      'Before-posting checklist',
+    ],
+    group: 'Create',
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube video',
+    icon: '▶️',
+    desc: 'Title & thumbnail ideas, intro, chapters, outro, description and SEO',
+    inside: ['Title ideas', '2 thumbnail slots', 'Intro, chapters, outro', 'Description & SEO checklist', 'Production steps'],
+    group: 'Create',
+  },
+  {
+    id: 'video',
+    name: 'Video production',
+    icon: '🎬',
+    desc: 'Idea → script → storyboard → moodboard → edit',
+    inside: ['Idea & hook', 'Outline', '3-scene storyboard', 'Colors', 'Shot list & edit checklist'],
+    group: 'Create',
+  },
+  {
+    id: 'brand',
+    name: 'Brand deal',
+    icon: '🤝',
+    desc: "A sponsorship from brief to report: talking points, do's & don'ts, contract, timeline",
+    inside: [
+      'Job card with deadline & fee',
+      "Brand brief, do's & don'ts",
+      'Deliverables & timeline',
+      'Contract & usage rights',
+      'Draft feedback',
+    ],
+    group: 'Work',
+  },
+  {
+    id: 'client',
+    name: 'Client job',
+    icon: '💼',
+    desc: 'Brief, deliverables, revisions, contact',
+    inside: ['Job card', 'Brief', 'Deliverables', 'Revision rounds', 'Contact'],
+    group: 'Work',
+  },
+  {
+    id: 'shoot',
+    name: 'Photo / video shoot',
+    icon: '📸',
+    desc: 'Concept, shot list, location & call times, people, gear and references',
+    inside: ['Concept', 'Shot list', 'Location & time', 'Team', 'Gear checklist', 'Reference area'],
+    group: 'Work',
+  },
+  {
+    id: 'calendar',
+    name: 'Content pipeline',
+    icon: '🗓️',
+    desc: 'Ideas, to shoot, editing, published',
+    inside: ['4 columns', 'Sample posts with platforms and dates'],
+    group: 'Plan',
+  },
+  {
+    id: 'ideas',
+    name: 'Idea bank',
+    icon: '💡',
+    desc: 'Hooks that worked, video ideas, series formats and trends to try',
+    inside: ['Hook bank', 'Video ideas', 'Series / formats', 'Trends to try'],
+    group: 'Plan',
+  },
+  {
+    id: 'moodboard',
+    name: 'Moodboard',
+    icon: '🎨',
+    desc: 'Palette, references, typography',
+    inside: ['5 colors', 'Reference area', 'Typography, sound, feeling'],
+    group: 'Plan',
+  },
 ];
 
 const card = (type: CardType, x: number, y: number, data?: CardData, size?: { width?: number; height?: number }) => {
@@ -217,6 +317,275 @@ function client(): BoardContent {
   return { nodes: [job, brief, deliver, rev, r1, r2, contact], edges: [wire(job, brief), wire(brief, deliver), wire(r1, r2)] };
 }
 
+function reels(): BoardContent {
+  const head = card('heading', 0, -110, { text: 'Reel: your topic' }, { width: 640 });
+  const concept = card(
+    'note',
+    0,
+    0,
+    {
+      color: '#e879f9',
+      title: 'Concept',
+      text: 'In one sentence: what does the viewer get?\n\nLength: 30–45s · 9:16\nTrend / audio:\n#idea',
+      platform: 'Reels',
+      publishDate: inDays(3),
+    },
+    { width: 300 },
+  );
+  const fHooks = card('frame', 340, 0, { title: 'Hooks — pick one', color: '#f59e0b', icon: '🪝' }, { width: 900, height: 240 });
+  const hooks = [
+    ['Bold claim', '"Stop doing X. Do this instead."'],
+    ['Question', '"Why does nobody talk about…?"'],
+    ['Visual surprise', 'Open on the most striking shot, explain after.'],
+  ].map(([title, text], i) => card('note', 364 + i * 290, 56, { title, text: `${text}\n#hook` }, { width: 270 }));
+
+  const fScript = card(
+    'frame',
+    0,
+    300,
+    { title: 'Script — beat by beat', color: '#34d399', icon: '🎬' },
+    { width: 1480, height: 400 },
+  );
+  const beats: [string, string, string, string][] = [
+    ['Close-up', '0–3s', 'HOOK — say the hook straight to camera', 'Trending audio starts'],
+    ['Medium', '3–8s', 'PROBLEM — the pain your viewer knows', 'VO'],
+    ['B-roll', '8–20s', 'VALUE — 3 quick tips, one per cut', 'VO + on-screen text'],
+    ['Insert', '20–27s', 'PROOF — result, before / after, numbers', 'Beat drop'],
+    ['Close-up', '27–30s', 'CTA — save, follow, or comment a word', 'VO'],
+  ];
+  const scenes = beats.map(([shot, duration, text, audio], i) =>
+    card('scene', 24 + i * 290, 356, { number: i + 1, shot, duration, text, audio }),
+  );
+
+  const onScreen = card('note', 0, 760, { title: 'On-screen text', text: '1. \n2. \n3. ' });
+  const caption = card(
+    'note',
+    290,
+    760,
+    {
+      title: 'Caption & hashtags',
+      text: 'First line = a second hook\n\n2–3 short lines of value\n\nCTA: "Save this for later"\n\n#niche #topic #series',
+    },
+    { width: 320 },
+  );
+  const shots = card('todo', 640, 760, {
+    title: '🎥 Shot list',
+    items: todos('Hook — 3 takes', 'B-roll for each tip', 'Proof shot / screen recording', 'CTA take'),
+  });
+  const post = card('todo', 930, 760, {
+    title: '🚀 Before posting',
+    items: todos(
+      'Cover frame with big text',
+      'Subtitles checked',
+      'Audio level / trending sound',
+      'Caption + hashtags',
+      'Post at your best time',
+      'Reply to comments in the first hour',
+    ),
+  });
+  const edges = [wire(concept, fHooks), ...scenes.slice(1).map((sc, i) => wire(scenes[i], sc))];
+  return { nodes: [fHooks, fScript, head, concept, ...hooks, ...scenes, onScreen, caption, shots, post], edges };
+}
+
+function youtube(): BoardContent {
+  const head = card('heading', 0, -110, { text: 'YouTube: working title' }, { width: 700 });
+  const fPack = card(
+    'frame',
+    0,
+    0,
+    { title: 'Packaging — title & thumbnail', color: '#f87171', icon: '🖼️' },
+    { width: 960, height: 320 },
+  );
+  const titles = card(
+    'note',
+    24,
+    56,
+    {
+      title: 'Title ideas',
+      text: '1. \n2. \n3. \n\nUnder ~60 characters · a clear promise + curiosity',
+      platform: 'YouTube',
+      publishDate: inDays(7),
+    },
+    { width: 300 },
+  );
+  const thumbA = card('image', 350, 56, { caption: 'Thumbnail A' });
+  const thumbB = card('image', 650, 56, { caption: 'Thumbnail B' });
+
+  const fScript = card('frame', 0, 380, { title: 'Script', color: '#38bdf8', icon: '📝' }, { width: 960, height: 330 });
+  const intro = card('note', 24, 436, { title: 'Intro (first 30s)', text: 'Hook:\nWhat they will get:\nWhy trust me:\n#hook' });
+  const chapters = card('note', 314, 436, {
+    title: 'Chapters',
+    text: '00:00 Intro\n01:00 \n03:00 \n06:00 \n08:00 Wrap-up',
+  });
+  const outro = card('note', 604, 436, {
+    title: 'Outro',
+    text: 'Recap in one line\nNext video to watch:\nCTA: subscribe / comment',
+  });
+
+  const seo = card('todo', 1020, 0, {
+    title: '🔎 Description & SEO',
+    items: todos(
+      'Description — the first 2 lines matter',
+      'Chapters in the description',
+      'Links & sponsor / affiliate disclosure',
+      'Keywords in title and description',
+      'End screen + cards',
+      'Add to a playlist',
+    ),
+  });
+  const prod = card('todo', 1020, 380, {
+    title: '🎬 Production',
+    items: todos('Script final', 'Shoot A-roll', 'B-roll', 'Edit + music', 'Thumbnail', 'Upload & schedule'),
+  });
+  return {
+    nodes: [fPack, fScript, head, titles, thumbA, thumbB, intro, chapters, outro, seo, prod],
+    edges: [wire(intro, chapters), wire(chapters, outro)],
+  };
+}
+
+function brand(): BoardContent {
+  const job = card('project', 0, 0, {
+    title: 'Brand × You — campaign',
+    client: 'Brand name',
+    deadline: inDays(21),
+    fee: '',
+    status: 'brief',
+    text: 'Deliverables: 1 Reel + 3 Stories',
+  });
+  const brief = card(
+    'note',
+    340,
+    0,
+    {
+      color: '#38bdf8',
+      title: 'Brief from the brand',
+      text: 'Product:\nKey message:\nTarget audience:\nMust say / must show:\nLink / discount code:\nHashtags & tags:',
+    },
+    { width: 300 },
+  );
+  const rules = card('note', 680, 0, { title: "Do's & don'ts", text: "✅ Do:\n- \n\n❌ Don't:\n- " });
+  const points = card('note', 680, 250, { title: 'Talking points (in your words)', text: '1. \n2. \n3. ' });
+  const deliver = card('todo', 0, 300, {
+    title: '📦 Deliverables',
+    items: todos('1× Reel (9:16)', '3× Stories with link sticker', 'Raw footage (if in the contract)'),
+  });
+  const timeline = card('todo', 340, 300, {
+    title: '🗓️ Timeline',
+    items: todos(
+      'Contract signed',
+      'Concept / script sent',
+      'Draft sent for approval',
+      'Approved',
+      'Posted',
+      'Report sent (reach, views, clicks)',
+      'Invoice paid',
+    ),
+  });
+  const money = card(
+    'note',
+    0,
+    580,
+    {
+      color: '#34d399',
+      title: 'Contract & money',
+      text: 'Fee:\nUsage rights (where, how long):\nExclusivity:\nPayment terms:\nInvoice number:',
+    },
+    { width: 300 },
+  );
+  const fDrafts = card(
+    'frame',
+    340,
+    600,
+    { title: 'Drafts & feedback', color: '#f87171', icon: '🔁' },
+    { width: 600, height: 280 },
+  );
+  const v1 = card('note', 364, 656, { title: 'V1 feedback', text: '' });
+  const v2 = card('note', 654, 656, { title: 'V2 feedback', text: '' });
+  return {
+    nodes: [fDrafts, job, brief, rules, points, deliver, timeline, money, v1, v2],
+    edges: [wire(job, brief), wire(brief, rules), wire(v1, v2)],
+  };
+}
+
+function shoot(): BoardContent {
+  const head = card('heading', 0, -110, { text: 'Shoot: name / date' }, { width: 600 });
+  const concept = card(
+    'note',
+    0,
+    0,
+    { color: '#f59e0b', title: 'Concept', text: 'Story / feeling in one line:\nFormat: photo · video · both\nDelivery: ' },
+    { width: 300 },
+  );
+  const where = card('note', 0, 220, {
+    title: '📍 Location & time',
+    text: 'Address:\nCall time:\nGolden hour / sunset:\nPermits:\nPlan B if it rains:',
+  });
+  const team = card('note', 0, 450, { title: '👥 Team', text: 'Model / talent:\nMUA / styling:\nAssistant:\nPhone numbers:' });
+  const shots = card('todo', 340, 0, {
+    title: '📋 Shot list',
+    items: todos('Wide establishing', 'Portrait — close', 'Detail / product', 'Movement / walking shot', 'Behind the scenes'),
+  });
+  const gear = card('todo', 340, 330, {
+    title: '🎒 Gear',
+    items: todos('Camera + charged batteries', 'Lenses', 'Empty memory cards', 'Light / reflector', 'Tripod / gimbal', 'Mic'),
+  });
+  const fRefs = card('frame', 660, 0, { title: 'References', color: '#f472b6', icon: '🎨' }, { width: 640, height: 520 });
+  const drop = card('note', 684, 56, { text: 'Drop reference photos and videos here ↓' }, { width: 590 });
+  return { nodes: [fRefs, head, concept, where, team, shots, gear, drop], edges: [wire(concept, shots)] };
+}
+
+function ideas(): BoardContent {
+  const head = card('heading', 0, -110, { text: 'Idea bank' }, { width: 500 });
+  const cols: [string, string, string, [string, string][]][] = [
+    [
+      'Hooks that worked',
+      '#f59e0b',
+      '🪝',
+      [
+        ['"I tried X for 30 days"', 'Why it worked: clear stakes + time frame #hook'],
+        ['"You are doing X wrong"', 'Why it worked: calls out the viewer #hook'],
+      ],
+    ],
+    [
+      'Video ideas',
+      '#a78bfa',
+      '💡',
+      [
+        ['Behind the scenes of my setup', '#idea'],
+        ['3 mistakes beginners make', '#idea'],
+      ],
+    ],
+    [
+      'Series / formats',
+      '#38bdf8',
+      '🔁',
+      [
+        ['Weekly: tool of the week', 'Same intro, same length, same day'],
+        ['Before / after', 'Split screen, one result per episode'],
+      ],
+    ],
+    ['Trends to try', '#34d399', '📈', [['Trending sound:', 'Link:\nMy twist:']]],
+  ];
+  const nodes: CardNode[] = [head];
+  cols.forEach(([title, color, icon, items], i) => {
+    const x = i * 320;
+    nodes.unshift(card('frame', x, 0, { title, color, icon }, { width: 300, height: 600 }));
+    items.forEach(([t, text], j) => nodes.push(card('note', x + 20, 60 + j * 170, { title: t, text })));
+  });
+  return { nodes, edges: [] };
+}
+
 export function buildTemplate(id: TemplateId): BoardContent {
-  return { welcome, video, calendar, moodboard, client }[id]();
+  return { welcome, reels, youtube, video, brand, client, calendar, ideas, shoot, moodboard }[id]();
+}
+
+/** A template's cards for an existing board: fresh ids, moved so they start at `at`. */
+export function templateCards(id: TemplateId, at: { x: number; y: number }): BoardContent {
+  const { nodes, edges } = buildTemplate(id);
+  const minX = Math.min(...nodes.map((n) => n.position.x));
+  const minY = Math.min(...nodes.map((n) => n.position.y));
+  return {
+    nodes: nodes.map((n) => ({ ...n, position: { x: n.position.x - minX + at.x, y: n.position.y - minY + at.y } })),
+    edges,
+  };
 }

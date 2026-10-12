@@ -4900,3 +4900,143 @@ select.field-input {
     font-size: 13px;
   }
 }
+
+/* Template gallery */
+.tpl-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.tpl-gallery h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+.tpl-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.tpl-card:hover,
+.tpl-card.open {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border));
+}
+.tpl-card.open {
+  grid-column: 1 / -1;
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.tpl-main {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 11px;
+  text-align: left;
+}
+.tpl-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--sunken);
+  font-size: 19px;
+}
+.tpl-text b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tpl-text small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.tpl-more {
+  padding: 0 11px 11px 57px;
+  animation: pop 0.12s ease-out;
+}
+.tpl-more ul {
+  margin: 0 0 10px;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-body);
+}
+.tpl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tpl-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+@media (max-width: 720px) {
+  .tpl-more {
+    padding-left: 11px;
+  }
+}
+
+/* Save from your phone */
+.phone-capture .seg {
+  align-self: flex-start;
+}
+.capture-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+.capture-step > b {
+  font-size: 13px;
+}
+.capture-step p {
+  margin: 0;
+}
+.capture-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 10px;
+  border-radius: 10px;
+  background: var(--sunken);
+  border: 1px solid var(--border);
+}
+.capture-link code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+.capture-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+}

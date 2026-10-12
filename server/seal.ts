@@ -28,7 +28,10 @@ export type Sealed =
   | { t: 'access'; uid: string; exp: number }
   | { t: 'refresh'; uid: string; exp: number }
   /** A link that lets photos / videos be uploaded onto one board for a while. */
-  | { t: 'upload'; uid: string; board: string; exp: number };
+  | { t: 'upload'; uid: string; board: string; exp: number }
+  /** A personal link that saves whatever is shared to it into the Inbox (phone share sheet). `v` must
+   *  match the account's current capture version, so making a new link switches the old one off. */
+  | { t: 'capture'; uid: string; v: number };
 
 export async function seal(payload: Sealed): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));

@@ -1,6 +1,7 @@
 import { NodeToolbar, Position, useReactFlow, useViewport, type NodeProps } from '@xyflow/react';
 import {
   Move,
+  LayoutTemplate,
   ArrowDownToLine,
   CalendarDays,
   Pipette,
@@ -447,6 +448,7 @@ export function ContextMenu() {
             </div>
             <div className="menu-sep" />
             <Item icon={Sparkles} label="Paste from AI…" kbd="A" onClick={() => s.setPanel('ai')} />
+            <Item icon={LayoutTemplate} label="Template…" onClick={() => s.setPanel('templates')} />
             <Item
               icon={MousePointerSquareDashed}
               label="Select all"
