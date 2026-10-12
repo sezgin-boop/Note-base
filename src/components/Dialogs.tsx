@@ -393,17 +393,24 @@ export function InstallDialog() {
             <Smartphone size={14} /> Install now
           </button>
         ) : ios ? (
-          <ol className="steps">
-            <li>
-              In Safari, tap the <b>Share</b> button (square with an arrow).
-            </li>
-            <li>
-              Choose <b>Add to Home Screen</b>.
-            </li>
-            <li>
-              Tap <b>Add</b> — Notebase is on your home screen.
-            </li>
-          </ol>
+          <>
+            <ol className="steps">
+              <li>
+                In Safari, tap the <b>Share</b> button <span className="ios-share" aria-hidden /> (on newer iPhones it's inside
+                the <b>⋯</b> menu at the bottom).
+              </li>
+              <li>
+                Scroll down and choose <b>Add to Home Screen</b>.
+              </li>
+              <li>
+                Keep <b>Open as Web App</b> on and tap <b>Add</b> — Notebase is on your home screen.
+              </li>
+            </ol>
+            <p className="small install-note">
+              <b>Your boards:</b> on iPhone the home-screen app keeps its own copy of everything, separate from Safari. Turn on{' '}
+              <b>Cloud sync</b> (same account in both) and your boards show up there too.
+            </p>
+          </>
         ) : (
           <ol className="steps">
             <li>
@@ -428,6 +435,59 @@ export function Toasts() {
           <Check size={14} /> {t.text}
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * In Safari on an iPhone / iPad (not yet installed): a small bar suggesting the home-screen app.
+ * Comes back at most once a week after "Not now".
+ */
+export function InstallHint() {
+  const setPanel = useStore((s) => s.setPanel);
+  const readOnly = useStore((s) => s.readOnly);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const ios =
+      /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /macintosh/i.test(navigator.userAgent));
+    let last = 0;
+    try {
+      last = Number(localStorage.getItem('notebase:installHint')) || 0;
+    } catch {
+      /* private mode */
+    }
+    if (!ios || isStandalone() || readOnly || Date.now() - last < 7 * 864e5) return;
+    const t = setTimeout(() => setShow(true), 4000);
+    return () => clearTimeout(t);
+  }, [readOnly]);
+  if (!show) return null;
+  const later = () => {
+    setShow(false);
+    try {
+      localStorage.setItem('notebase:installHint', String(Date.now()));
+    } catch {
+      /* private mode */
+    }
+  };
+  return (
+    <div className="install-hint" role="dialog" aria-label="Install Notebase">
+      <img src="/icons/apple-touch-icon.png" alt="" />
+      <span>
+        <b>Get the Notebase app</b>
+        <small>Full screen, own icon, works offline</small>
+      </span>
+      <button
+        className="btn"
+        onClick={() => {
+          later();
+          setPanel('install');
+        }}
+      >
+        How
+      </button>
+      <button className="icon-btn" title="Not now" onClick={later}>
+        <X size={15} />
+      </button>
     </div>
   );
 }

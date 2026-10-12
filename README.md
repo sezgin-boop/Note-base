@@ -83,6 +83,9 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Templates (＋ next to Boards → _All templates…_, or right-click the board → _Template…_): Reels / TikTok script,
   YouTube video, video production, brand deal, client job, photo / video shoot, content pipeline, idea bank and
   moodboard — as a new board or added to the open one
+- Install as an app (Safari → Share → Add to Home Screen; Chrome → Install): full screen with launch screens for
+  every iPhone / iPad size, bars kept clear of the notch and home bar; Safari on iPhone shows a small "Get the app"
+  hint (at most once a week)
 - Save from your phone (sidebar → _Save from your phone_): share a link, text or photo from any app into the Inbox.
   Android: the installed app is in the share menu. iPhone: a Shortcut posts to a personal link (`/api/capture`,
   needs cloud sync and `SUPABASE_SERVICE_ROLE_KEY`); making a new link switches the old one off

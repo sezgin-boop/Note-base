@@ -114,6 +114,16 @@ body,
   height: 100%;
   margin: 0;
 }
+/* The installed app runs full screen (under the iPhone's status bar and above its home bar):
+   the floating bars keep clear of them. */
+:root {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+html {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
 body {
   background: var(--bg);
   overflow: hidden;
@@ -221,9 +231,9 @@ kbd {
 .sidebar {
   position: absolute;
   z-index: 20;
-  top: var(--gap);
+  top: calc(var(--gap) + var(--safe-t));
   left: var(--gap);
-  bottom: var(--gap);
+  bottom: calc(var(--gap) + var(--safe-b));
   width: var(--side-w);
   display: flex;
   flex-direction: column;
@@ -500,7 +510,7 @@ a.side-btn {
 .topbar {
   position: absolute;
   z-index: 10;
-  top: var(--gap);
+  top: calc(var(--gap) + var(--safe-t));
   left: var(--gap);
   right: var(--gap);
   height: 44px;
@@ -697,7 +707,7 @@ a.side-btn {
 /* ---------- Dock (bottom toolbar) ---------- */
 .toolbar {
   position: absolute;
-  bottom: 16px;
+  bottom: calc(16px + var(--safe-b));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -2589,9 +2599,9 @@ img.gal-in.from-right {
 .jobs {
   position: absolute;
   z-index: 20;
-  top: var(--gap);
+  top: calc(var(--gap) + var(--safe-t));
   right: var(--gap);
-  bottom: var(--gap);
+  bottom: calc(var(--gap) + var(--safe-b));
   width: 340px;
   background: var(--glass);
   border: 1px solid var(--border);
@@ -3361,7 +3371,7 @@ select.field-input {
 
 .toasts {
   position: fixed;
-  bottom: 90px;
+  bottom: calc(90px + var(--safe-b));
   left: 50%;
   transform: translateX(-50%);
   z-index: 300;
@@ -3519,9 +3529,9 @@ select.field-input {
 .calendar {
   position: absolute;
   z-index: 15;
-  top: var(--gap);
+  top: calc(var(--gap) + var(--safe-t));
   right: var(--gap);
-  bottom: var(--gap);
+  bottom: calc(var(--gap) + var(--safe-b));
   left: var(--gap);
   display: flex;
   flex-direction: column;
@@ -3831,7 +3841,7 @@ select.field-input {
   .toolbar {
     max-width: calc(100vw - 16px);
     overflow-x: auto;
-    bottom: 10px;
+    bottom: calc(10px + var(--safe-b));
     border-radius: 18px;
   }
   .minimap {
@@ -3850,7 +3860,7 @@ select.field-input {
     place-items: center;
     position: absolute;
     right: 14px;
-    bottom: 80px;
+    bottom: calc(80px + var(--safe-b));
     z-index: 11;
     width: 54px;
     height: 54px;
@@ -3961,7 +3971,7 @@ select.field-input {
 .style-panel {
   position: absolute;
   z-index: 12;
-  top: calc(var(--gap) + 54px);
+  top: calc(var(--gap) + 54px + var(--safe-t));
   right: var(--gap);
   width: 304px;
   max-height: calc(100% - 150px);
@@ -4630,7 +4640,7 @@ select.field-input {
   position: absolute;
   z-index: 12;
   left: 50%;
-  bottom: 84px;
+  bottom: calc(84px + var(--safe-b));
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -4647,7 +4657,7 @@ select.field-input {
   animation: rise 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .app.read-only .draw-toolbar {
-  bottom: 16px;
+  bottom: calc(16px + var(--safe-b));
 }
 .draw-btn {
   flex: none;
@@ -4725,7 +4735,7 @@ select.field-input {
   position: absolute;
   z-index: 12;
   left: 50%;
-  bottom: 18px;
+  bottom: calc(18px + var(--safe-b));
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
@@ -4767,7 +4777,7 @@ select.field-input {
 .markup-bar {
   position: absolute;
   z-index: 11;
-  top: calc(var(--gap) + 54px);
+  top: calc(var(--gap) + 54px + var(--safe-t));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -4801,7 +4811,7 @@ select.field-input {
 }
 @media (max-width: 720px) {
   .draw-toolbar {
-    bottom: 76px;
+    bottom: calc(76px + var(--safe-b));
     left: 8px;
     right: 8px;
     transform: none;
@@ -5039,4 +5049,72 @@ select.field-input {
   align-items: center;
   gap: 6px;
   color: var(--green);
+}
+
+/* Install suggestion (Safari on iPhone / iPad) */
+.install-hint {
+  position: fixed;
+  z-index: 60;
+  left: 12px;
+  right: 12px;
+  bottom: calc(84px + var(--safe-b));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 10px 10px 10px 12px;
+  border-radius: 18px;
+  background: var(--popover);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: rise 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.install-hint img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+.install-hint span {
+  flex: 1;
+  min-width: 0;
+}
+.install-hint b {
+  display: block;
+  font-size: 13.5px;
+}
+.install-hint small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.install-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  line-height: 1.5;
+}
+.ios-share {
+  display: inline-block;
+  width: 13px;
+  height: 15px;
+  vertical-align: -2px;
+  border: 1.6px solid currentColor;
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+  position: relative;
+  margin: 0 2px;
+}
+.ios-share::before {
+  content: '↑';
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }

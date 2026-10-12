@@ -12,7 +12,7 @@ import { AiDialog } from './components/AiDialog';
 import { CaptureDialog } from './components/Capture';
 import { CalendarView, DetailsDialog } from './components/Planning';
 import { toast } from './ui';
-import { AccountDialog, InstallDialog, ShareDialog, Toasts } from './components/Dialogs';
+import { AccountDialog, InstallDialog, InstallHint, ShareDialog, Toasts } from './components/Dialogs';
 import { startSync } from './sync';
 import { Canvas } from './components/Canvas';
 import { JobsPanel, Lightbox, SearchPalette, Topbar } from './components/Panels';
@@ -219,6 +219,7 @@ export default function App() {
       {panel === 'style' && <StylePanel />}
       {panel === 'templates' && <TemplatesDialog />}
       {panel === 'phone' && <PhoneCaptureDialog />}
+      <InstallHint />
       <Lightbox />
       <Toasts />
       {!readOnly && <Shortcuts />}
