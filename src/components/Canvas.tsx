@@ -16,7 +16,7 @@ import { addTyped } from '../actions';
 import { importFromAi } from '../ai/apply';
 import { hasNotebaseBlock } from '../ai/importer';
 import { isImageUrl, isVideoUrl, saveMedia } from '../db';
-import { addMediaFiles, ImageNode, LinkNode, savePhotos } from '../nodes/MediaNodes';
+import { addMediaFiles, ImageNode, LinkNode, openPhotoViewer, savePhotos } from '../nodes/MediaNodes';
 import { appendPhotos, clean, galleryOf } from '../gallery';
 import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
@@ -212,6 +212,16 @@ function useTouchNavigation(
       e.preventDefault();
       e.stopPropagation();
       active = true;
+      // Two fingers on a photo: open it full screen to zoom the photo, not the board.
+      const photoOf = (t: Touch) =>
+        (document.elementFromPoint(t.clientX, t.clientY)?.closest('[data-photo-of]') as HTMLElement | null) ?? null;
+      const [p1, p2] = [photoOf(e.touches[0]), photoOf(e.touches[1])];
+      if (p1 && p1 === p2 && !useDraw.getState().tool) {
+        cancelHold();
+        start = null;
+        openPhotoViewer(p1.dataset.photoOf!, Number(p1.dataset.photoIndex) || 0);
+        return;
+      }
       start = { ...measure(e.touches), vp: rf.getViewport() };
     };
     const onMove = (e: TouchEvent) => {

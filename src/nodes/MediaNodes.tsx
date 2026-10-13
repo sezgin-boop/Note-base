@@ -2,9 +2,9 @@ import type { NodeProps, XYPosition } from '@xyflow/react';
 import { makeCard, SIZES } from '../cards';
 import { CloudUpload, ExternalLink, Image as ImageIcon, ImagePlus, Link2, Maximize2, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { hostname, saveMedia, useMediaUrl, usePreview, youtubeId } from '../db';
+import { getMediaUrl, hostname, saveMedia, useMediaUrl, usePreview, youtubeId } from '../db';
 import { useStore } from '../store';
-import { appendPhotos, removePhoto } from '../gallery';
+import { appendPhotos, galleryOf, removePhoto } from '../gallery';
 import type { CardNode, MediaRef } from '../types';
 import { GalleryNav, useGallery } from './Gallery';
 import { Shell } from './Shell';
@@ -154,7 +154,11 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
             className="media-frame gallery"
             data-drop-target={id}
             data-drop-kind="image"
+            data-photo-of={id}
+            data-photo-index={g.index}
             onDoubleClick={() => src && setLightbox({ src, kind: 'image', photos: g.list, index: g.index })}
+            // On touch screens one tap opens the photo (there's no double-click).
+            onClick={() => coarse() && src && setLightbox({ src, kind: 'image', photos: g.list, index: g.index })}
           >
             <Photo key={`${g.index}:${g.current?.mediaId ?? g.current?.url}`} id={id} photo={g.current} dir={g.dir} />
             <GalleryNav count={g.count} index={g.index} go={g.go} />
@@ -166,6 +170,18 @@ export function ImageNode({ id, data, selected }: NodeProps<CardNode>) {
       )}
     </Shell>
   );
+}
+
+const coarse = () => matchMedia('(pointer: coarse)').matches;
+
+/** Open a card's photos full screen (the photo at `index` first). */
+export async function openPhotoViewer(id: string, index = 0) {
+  const node = nodeById(id);
+  if (!node) return;
+  const photos = galleryOf(node.data);
+  const cur = photos[Math.min(index, photos.length - 1)];
+  const src = cur && (cur.mediaId ? await getMediaUrl(cur.mediaId) : cur.url);
+  if (src) useStore.getState().setLightbox({ src, kind: 'image', photos, index });
 }
 
 const nodeById = (id: string) => useStore.getState().nodes.find((n) => n.id === id);
