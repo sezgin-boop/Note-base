@@ -135,7 +135,12 @@ async function addVersion(id: string, d: CardData) {
 
 export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsoluteY, width }: NodeProps<CardNode>) {
   const src = useMediaUrl(data.mediaId, data.url);
-  const { setLightbox, updateData, readOnly, shared, currentId } = useStore();
+  // Only what this card needs (the whole store would re-render every video on every change).
+  const setLightbox = useStore((s) => s.setLightbox);
+  const updateData = useStore((s) => s.updateData);
+  const readOnly = useStore((s) => s.readOnly);
+  const shared = useStore((s) => s.shared);
+  const currentId = useStore((s) => s.currentId);
   const clientComments = useStore((s) => s.clientComments[id]);
   const embed = data.url ? embedUrl(data.url) : null;
   const kind: Kind | null = embed ? (embed.includes('vimeo') ? 'vimeo' : 'youtube') : src ? 'file' : null;

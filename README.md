@@ -20,6 +20,9 @@ It works fully without the cloud; everything is then stored only in the browser 
 
 - Infinite canvas: pan, zoom (⌘/Ctrl + wheel, pinch on phones — anywhere, also over cards and text), minimap, box
   select (Shift + drag)
+- Big boards stay smooth (tested with ~475 cards, 19 sections and 264 arrows): boards with more than 150 cards only
+  draw what's on screen, cards only redraw when they change, and far zoomed out cards turn into light previews
+  (title, picture or color) until you zoom back in
 - Undo / redo buttons in the top bar (also ⌘Z / ⇧⌘Z): every change — text edits, moves, deletes, AI imports — can be
   taken back
 - Cards: Note, List, Heading, Image, Video, Link, Scene (storyboard), Job (client, due date, fee, status), Color, Section,

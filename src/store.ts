@@ -157,6 +157,17 @@ let createdAt = 0;
 export const justCreated = () => Date.now() - createdAt < 600;
 
 /** Older boards stored fixed heights on auto-sizing cards; let them follow their content. */
+/** From this many cards on, a board only draws what's on screen and simplifies cards when zoomed far out. */
+export const BIG_BOARD = 150;
+
+// Cards by id, built once per nodes array (each card looks itself up on every change).
+const indexCache = new WeakMap<CardNode[], Map<string, CardNode>>();
+export function nodeIndex(nodes: CardNode[]): Map<string, CardNode> {
+  let map = indexCache.get(nodes);
+  if (!map) indexCache.set(nodes, (map = new Map(nodes.map((n) => [n.id, n]))));
+  return map;
+}
+
 const normalize = (nodes: CardNode[]) =>
   nodes.map((n) => (AUTO_HEIGHT.has(n.type as CardType) && n.height !== undefined ? { ...n, height: undefined } : n));
 

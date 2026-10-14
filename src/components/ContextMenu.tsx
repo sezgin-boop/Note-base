@@ -1,4 +1,4 @@
-import { NodeToolbar, Position, useReactFlow, useViewport, type NodeProps } from '@xyflow/react';
+import { NodeToolbar, Position, useReactFlow, useStore as useFlowStore, useViewport, type NodeProps } from '@xyflow/react';
 import {
   Move,
   LayoutTemplate,
@@ -24,14 +24,15 @@ import {
   Unlink,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
 import { addPaletteFor } from '../palette';
 import { DRAW_COLORS, DRAW_SIZES, paint, useDraw } from '../draw';
 import { SECTION_LOOKS } from '../sections';
 import { copiedSkin, copySkin, SKIN_TYPES } from './StylePanel';
 import { cardLabel } from '../share/outline';
-import { useStore, type Background } from '../store';
+import { BIG_BOARD, nodeIndex, useStore, type Background } from '../store';
+import { LITE_TYPES, LITE_ZOOM, LiteCard } from '../nodes/LiteCard';
 import type { CardNode, CardType } from '../types';
 import { ACCENTS, TEXT_SIZES } from '../types';
 import { CardContext, CardMeta } from '../nodes/meta';
@@ -552,12 +553,24 @@ function MoveGrip() {
 }
 
 export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentType<P>) {
-  return function WithActions(flowProps: P) {
+  // React Flow re-renders every card's wrapper whenever anything on the board changes, with the
+  // same props for all but the changed card. memo skips those: on a board with hundreds of cards
+  // that's the difference between smooth and stuck while dragging or typing.
+  return memo(function WithActions(flowProps: P) {
     // The card's data straight from the app's store. React Flow hands nodes their props one render
     // later; with those, a text field would briefly get its old text back while you type, which
     // throws the caret to the end (e.g. after deleting a selected word in the middle of a note).
-    const live = useStore((s) => s.nodes.find((n) => n.id === flowProps.id)?.data);
+    const live = useStore((s) => nodeIndex(s.nodes).get(flowProps.id)?.data);
     const props = live && live !== flowProps.data ? { ...flowProps, data: live } : flowProps;
+    // Far zoomed out on a big board: a light placeholder instead of the whole card.
+    const far = useFlowStore((s) => s.transform[2] < LITE_ZOOM);
+    const big = useStore((s) => s.nodes.length > BIG_BOARD);
+    const liteNode = useStore((s) =>
+      far && big && !flowProps.selected && LITE_TYPES.has(flowProps.type as CardType)
+        ? nodeIndex(s.nodes).get(flowProps.id)
+        : undefined,
+    );
+    if (liteNode) return <LiteCard node={liteNode} />;
     return (
       <>
         {props.selected && <CardActions id={props.id} />}
@@ -569,5 +582,5 @@ export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentTy
         {OUTSIDE_META.has(props.type as CardType) && <CardMeta node={props as unknown as CardNode} outside />}
       </>
     );
-  };
+  });
 }

@@ -21,7 +21,7 @@ import { appendPhotos, clean, galleryOf } from '../gallery';
 import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
-import { SELECTION, useStore } from '../store';
+import { BIG_BOARD, SELECTION, useStore } from '../store';
 import { dropTargetAt, highlightSlot, pointOf, settleSlot } from './dropTargets';
 import { useDraw } from '../draw';
 import { DrawNode } from '../nodes/DrawNode';
@@ -29,7 +29,7 @@ import { DrawOverlay, useDrawInput } from './DrawLayer';
 import { create } from 'zustand';
 import { sectionMembers } from '../sections';
 import { ContextMenu, withCardActions } from './ContextMenu';
-import type { CardNode, CardType, MediaRef } from '../types';
+import type { CardEdge, CardNode, CardType, MediaRef } from '../types';
 
 const nodeTypes = Object.fromEntries(
   Object.entries({
@@ -47,6 +47,23 @@ const nodeTypes = Object.fromEntries(
     draw: DrawNode,
   }).map(([k, C]) => [k, withCardActions(C)]),
 ) as NodeTypes;
+
+// Props for React Flow that never change: new objects or functions on every render would make it
+// redraw every card and arrow each time anything on the board changes.
+const FIT_VIEW = { padding: 0.2, maxZoom: 1 };
+const MOD_KEYS = ['Meta', 'Control'];
+const EDGE_OPTIONS = { type: 'default', interactionWidth: 20 };
+const PRO_OPTIONS = { hideAttribution: true };
+const MINIMAP_SIZE = { width: 180, height: 120 };
+const minimapColor = (n: { data: unknown }) => ((n.data as CardNode['data'])?.color as string) || 'var(--minimap-node)';
+
+/** A callback that keeps the same identity across renders but always runs the latest code. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function useStable<T extends (...args: any[]) => any>(fn: T): T {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback(((...args) => ref.current(...args)) as T, []);
+}
 
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
@@ -570,6 +587,8 @@ export function Canvas() {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const phone = useMemo(() => matchMedia('(max-width: 720px), (pointer: coarse)').matches, []);
+  // Big boards (hundreds of cards) only draw what's on screen, on every device.
+  const bigBoard = useStore((s) => s.nodes.length > BIG_BOARD);
   const onLiftDrop = useCallback(
     (id: string, x: number, y: number) => {
       const s = useStore.getState();
@@ -619,9 +638,9 @@ export function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={(e, _, dragged) => {
+        onNodeDragStart={useStable(onNodeDragStart)}
+        onNodeDrag={useStable(onNodeDrag)}
+        onNodeDragStop={useStable<OnNodeDrag<CardNode>>((e, _, dragged) => {
           frameChildren.current.clear();
           const img = imageBeingDropped(dragged);
           highlightSlot(null);
@@ -632,25 +651,25 @@ export function Canvas() {
           if (!slot || (slot.dataset.dropKind ?? 'image') !== 'image') return;
           // The image moves into the slot (one undo step: the drag already saved a checkpoint).
           fillSlot(slot.dataset.dropTarget!, galleryOf(img.data), img.id);
-        }}
-        onMoveEnd={(_, v) => setViewport(v)}
-        onNodeContextMenu={(e, node) => {
+        })}
+        onMoveEnd={useStable((_: unknown, v: { x: number; y: number; zoom: number }) => setViewport(v))}
+        onNodeContextMenu={useStable((e: React.MouseEvent, node: CardNode) => {
           e.preventDefault();
           if (!node.selected) selectOnly(node.id);
           setMenu({ x: e.clientX, y: e.clientY, kind: 'node', id: node.id });
-        }}
-        onSelectionContextMenu={(e, sel) => {
+        })}
+        onSelectionContextMenu={useStable((e: React.MouseEvent, sel: CardNode[]) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, kind: 'node', id: sel[0]?.id });
-        }}
-        onEdgeContextMenu={(e, edge) => {
+        })}
+        onEdgeContextMenu={useStable((e: React.MouseEvent, edge: CardEdge) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, kind: 'edge', id: edge.id });
-        }}
-        onPaneContextMenu={(e) => {
+        })}
+        onPaneContextMenu={useStable((e: React.MouseEvent | MouseEvent) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, kind: 'pane', at: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
-        }}
+        })}
         nodesDraggable={!readOnly && !drawTool}
         nodesConnectable={!readOnly && !drawTool}
         elementsSelectable={!drawTool}
@@ -658,21 +677,21 @@ export function Canvas() {
         edgesReconnectable={!readOnly}
         defaultViewport={viewport}
         fitView={!viewport}
-        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+        fitViewOptions={FIT_VIEW}
         connectionMode={ConnectionMode.Loose}
         elevateNodesOnSelect={false}
         zoomOnDoubleClick={false}
         deleteKeyCode={null}
         selectionKeyCode="Shift"
-        multiSelectionKeyCode={['Meta', 'Control']}
+        multiSelectionKeyCode={MOD_KEYS}
         panOnScroll
-        zoomActivationKeyCode={['Meta', 'Control']}
+        zoomActivationKeyCode={MOD_KEYS}
         // Phones: keep only the cards on screen in the page, so big boards stay within memory.
-        onlyRenderVisibleElements={phone}
+        onlyRenderVisibleElements={phone || bigBoard}
         minZoom={0.1}
         maxZoom={3}
-        defaultEdgeOptions={{ type: 'default', interactionWidth: 20 }}
-        proOptions={{ hideAttribution: true }}
+        defaultEdgeOptions={EDGE_OPTIONS}
+        proOptions={PRO_OPTIONS}
       >
         <DrawOverlay />
         {background === 'dots' && <Background variant={BackgroundVariant.Dots} gap={22} size={1.7} color="var(--dots)" />}
@@ -681,9 +700,9 @@ export function Canvas() {
           pannable
           zoomable
           className="minimap"
-          style={{ width: 180, height: 120 }}
+          style={MINIMAP_SIZE}
           maskColor="var(--minimap-mask)"
-          nodeColor={(n) => ((n.data as any)?.color as string) || 'var(--minimap-node)'}
+          nodeColor={minimapColor}
           nodeBorderRadius={6}
         />
       </ReactFlow>
