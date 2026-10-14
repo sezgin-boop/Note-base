@@ -60,6 +60,8 @@ export interface CardData extends Record<string, unknown> {
   mediaId?: string;
   url?: string;
   caption?: string;
+  /** Cover image of an uploaded video (a frame grabbed from it), for the video it was made from. */
+  poster?: { of: string; id: string };
   /** More photos in the same image card / scene frame (the first one is mediaId / url above). */
   more?: MediaRef[];
   boardId?: string;

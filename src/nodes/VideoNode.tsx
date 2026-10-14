@@ -3,9 +3,9 @@ import { BadgeCheck, Camera, Check, Clock, Maximize2, MessageSquare, Play, Plus,
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'react';
 import { addSharedComment, type RemoteComment } from '../cloud';
-import { embedUrl, saveMedia, useMediaUrl } from '../db';
+import { embedUrl, saveMedia, useMediaUrl, usePreviewUrl } from '../db';
 import { fmtTime } from '../share/outline';
-import { useStore } from '../store';
+import { BIG_BOARD, useStore } from '../store';
 import { updateClientComment } from '../sync';
 import type { CardData, CardNode, VideoComment, VideoVersion } from '../types';
 import { toast } from '../ui';
@@ -63,7 +63,8 @@ function usePlayer(kind: Kind | null, live: boolean) {
 
   const time = () => (kind === 'file' ? (videoRef.current?.currentTime ?? 0) : clock.current.time);
   const seek = (t: number) => {
-    if (kind !== 'file' && !frameRef.current) return onIdleSeek.current?.(t);
+    // Not playing yet (a cover is shown): start it at that moment.
+    if (kind === 'file' ? !videoRef.current : !frameRef.current) return onIdleSeek.current?.(t);
     if (kind === 'file' && videoRef.current) {
       videoRef.current.currentTime = t;
       videoRef.current.play().catch(() => {});
@@ -163,7 +164,40 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
   const playSrc = readOnly ? viewSrc : src;
   const playEmbed = readOnly ? (shown.url ? embedUrl(shown.url) : null) : embed;
 
-  useEffect(() => setLive(null), [playEmbed]);
+  useEffect(() => setLive(null), [playEmbed, playSrc]);
+
+  // Uploaded videos on phones and on big boards: a cover image until played. Each <video> is a
+  // decoder; a dozen of them at once is enough for iOS to close the page.
+  const big = useStore((s) => s.nodes.length > BIG_BOARD);
+  const coverOnly = kind === 'file' && (big || matchMedia('(pointer: coarse)').matches);
+  const posterOf = shown.mediaId;
+  const posterId = data.poster && data.poster.of === posterOf ? data.poster.id : undefined;
+  const posterSrc = usePreviewUrl(posterId);
+  // A cover is grabbed once from a video that plays here (computers), and synced to other devices.
+  const grabbed = useRef(false);
+  const grabPoster = (v: HTMLVideoElement) => {
+    if (readOnly || posterId || grabbed.current || !posterOf || !v.videoWidth) return;
+    grabbed.current = true;
+    const at = Math.min(1, (v.duration || 2) / 3);
+    const back = v.currentTime;
+    const onSeeked = async () => {
+      v.removeEventListener('seeked', onSeeked);
+      try {
+        const scale = Math.min(1, 640 / v.videoWidth);
+        const c = document.createElement('canvas');
+        c.width = Math.round(v.videoWidth * scale);
+        c.height = Math.round(v.videoHeight * scale);
+        c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height);
+        const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.8));
+        if (blob) updateData(id, { poster: { of: posterOf, id: await saveMedia(blob) } });
+      } catch {
+        /* the video's server doesn't allow reading frames: no cover */
+      }
+      if (v.paused) v.currentTime = back;
+    };
+    v.addEventListener('seeked', onSeeked);
+    v.currentTime = at;
+  };
 
   const inVersion = (v?: string | null) => (v ?? 'v1') === shown.id;
   const own = data.comments ?? [];
@@ -350,10 +384,18 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
                 allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                 allowFullScreen
               />
+            ) : playSrc && coverOnly && !live ? (
+              <button className="embed-poster" title="Play" onClick={() => setLive({ start: 0 })}>
+                {posterSrc && <img src={posterSrc} alt="" draggable={false} loading="lazy" />}
+                <span className="embed-play">
+                  <Play size={20} fill="currentColor" />
+                </span>
+              </button>
             ) : (
               playSrc && (
                 <video
                   key={playSrc}
+                  autoPlay={coverOnly && !!live}
                   ref={player.videoRef}
                   src={playSrc}
                   // Cloud copies need CORS so frames can be grabbed; local blobs don't.
@@ -361,9 +403,11 @@ export function VideoNode({ id, data, selected, positionAbsoluteX, positionAbsol
                   controls
                   playsInline
                   preload="metadata"
+                  onLoadedData={(e) => !coverOnly && grabPoster(e.currentTarget)}
                   onLoadedMetadata={(e) => {
                     const v = e.currentTarget;
                     player.setDuration(v.duration);
+                    if (live?.start) v.currentTime = live.start;
                     const aspect = Math.round((v.videoWidth / v.videoHeight) * 1000) / 1000;
                     if (!aspect || readOnly || aspect === current.aspect) return;
                     updateData(id, {

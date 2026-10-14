@@ -94,25 +94,29 @@ export function useMediaUrl(mediaId?: string, url?: string) {
 // once decoded; a few of those on a board are enough for a phone's browser to crash while panning.
 
 const PREVIEW_MAX = 1400;
+/** Small thumbnails, for cards seen from far away (a whole big board on a phone). */
+export const TINY = 320;
 const previewCache = new Map<string, string>();
 const previewJobs = new Map<string, Promise<string | null>>();
 let previewQueue: Promise<unknown> = Promise.resolve();
 
-async function downscale(blob: Blob): Promise<Blob | null> {
-  if (!blob.type.startsWith('image/') || /gif|svg/.test(blob.type) || blob.size < 350_000) return null;
+async function downscale(blob: Blob, max: number): Promise<Blob | null> {
+  // Memory goes by pixels, not file size: a 150 KB JPEG can still be 1920 px wide.
+  if (!blob.type.startsWith('image/') || /gif|svg/.test(blob.type) || (max > TINY && blob.size < 15_000)) return null;
   const url = URL.createObjectURL(blob);
   try {
     const img = new Image();
     img.decoding = 'async';
     img.src = url;
     await img.decode();
-    const scale = Math.min(1, PREVIEW_MAX / Math.max(img.naturalWidth, img.naturalHeight));
-    if (scale === 1 && blob.size < 1_500_000) return null;
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    if (scale === 1 && (max <= TINY || blob.size < 1_500_000)) return null;
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(img.naturalWidth * scale);
     canvas.height = Math.round(img.naturalHeight * scale);
     canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const type = blob.type === 'image/png' || blob.type === 'image/webp' ? 'image/png' : 'image/jpeg';
+    const type =
+      max <= TINY ? 'image/jpeg' : blob.type === 'image/png' || blob.type === 'image/webp' ? 'image/png' : 'image/jpeg';
     const out = await new Promise<Blob | null>((r) => canvas.toBlob(r, type, 0.85));
     canvas.width = canvas.height = 0; // free the bitmap right away (Safari keeps it otherwise)
     return out && out.size < blob.size ? out : null;
@@ -123,8 +127,10 @@ async function downscale(blob: Blob): Promise<Blob | null> {
   }
 }
 
-async function makePreview(id: string): Promise<string | null> {
-  const saved = await get(`thumb:${id}`);
+const thumbKey = (id: string, max: number) => (max === PREVIEW_MAX ? `thumb:${id}` : `thumb${max}:${id}`);
+
+async function makePreview(id: string, max: number): Promise<string | null> {
+  const saved = await get(thumbKey(id, max));
   if (saved === 'original') return getMediaUrl(id);
   const thumb = fromStored(saved);
   if (thumb) return URL.createObjectURL(thumb);
@@ -136,25 +142,26 @@ async function makePreview(id: string): Promise<string | null> {
   // Not here and not in the cloud (yet): the device it was added on may still be uploading it.
   if (!blob) return null;
   // One at a time, so several big photos are never decoded at once.
-  const job = previewQueue.then(() => downscale(blob!));
+  const job = previewQueue.then(() => downscale(blob!, max));
   previewQueue = job;
   const small = await job;
-  await set(`thumb:${id}`, small ? await toStored(small) : 'original').catch(() => {});
+  await set(thumbKey(id, max), small ? await toStored(small) : 'original').catch(() => {});
   return small ? URL.createObjectURL(small) : getMediaUrl(id);
 }
 
 /** URL of a light copy of an image, for showing it on a card (the original is used full screen). */
-export async function getPreviewUrl(id: string): Promise<string | null> {
-  const cached = previewCache.get(id);
+export async function getPreviewUrl(id: string, max = PREVIEW_MAX): Promise<string | null> {
+  const key = `${max}:${id}`;
+  const cached = previewCache.get(key);
   if (cached) return cached;
-  let job = previewJobs.get(id);
+  let job = previewJobs.get(key);
   if (!job) {
-    job = makePreview(id).then((u) => {
-      if (u) previewCache.set(id, u);
-      previewJobs.delete(id);
+    job = makePreview(id, max).then((u) => {
+      if (u) previewCache.set(key, u);
+      previewJobs.delete(key);
       return u;
     });
-    previewJobs.set(id, job);
+    previewJobs.set(key, job);
   }
   return job;
 }
@@ -163,12 +170,12 @@ export async function getPreviewUrl(id: string): Promise<string | null> {
  * Preview of an image for a card. `missing` is true while the file is on neither this device nor
  * the cloud (e.g. the phone it was added on hasn't uploaded it yet); it keeps checking until it arrives.
  */
-export function usePreviewUrl(mediaId?: string, url?: string) {
-  return usePreview(mediaId, url).src;
+export function usePreviewUrl(mediaId?: string, url?: string, max = PREVIEW_MAX) {
+  return usePreview(mediaId, url, max).src;
 }
 
-export function usePreview(mediaId?: string, url?: string) {
-  const [src, setSrc] = useState<string | null>(url ?? (mediaId ? (previewCache.get(mediaId) ?? null) : null));
+export function usePreview(mediaId?: string, url?: string, max = PREVIEW_MAX) {
+  const [src, setSrc] = useState<string | null>(url ?? (mediaId ? (previewCache.get(`${max}:${mediaId}`) ?? null) : null));
   const [missing, setMissing] = useState(false);
   useEffect(() => {
     setMissing(false);
@@ -178,7 +185,7 @@ export function usePreview(mediaId?: string, url?: string) {
     let timer = 0;
     let wait = 4000;
     const load = () =>
-      getPreviewUrl(mediaId).then((u) => {
+      getPreviewUrl(mediaId, max).then((u) => {
         if (!alive) return;
         setSrc(u);
         setMissing(!u);
@@ -192,7 +199,7 @@ export function usePreview(mediaId?: string, url?: string) {
       alive = false;
       clearTimeout(timer);
     };
-  }, [mediaId, url]);
+  }, [mediaId, url, max]);
   return { src, missing };
 }
 
@@ -209,7 +216,7 @@ export async function exportWorkspace(): Promise<Blob> {
   const data: Record<string, unknown> = {};
   for (const k of all) {
     const key = String(k);
-    if (key.startsWith('thumb:')) continue; // rebuilt on demand
+    if (key.startsWith('thumb')) continue; // rebuilt on demand
     const value = await get(key);
     const blob = key.startsWith('media:') ? fromStored(value) : undefined;
     data[key] = blob ? { __blob: await blobToDataUrl(blob) } : value;

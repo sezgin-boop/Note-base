@@ -1,6 +1,6 @@
 import { estimateHeight } from '../ai/importer';
 import { SIZES } from '../cards';
-import { usePreviewUrl, youtubeId } from '../db';
+import { TINY, usePreviewUrl, youtubeId } from '../db';
 import type { CardNode, CardType } from '../types';
 import { Handles } from './Shell';
 
@@ -31,8 +31,16 @@ export function LiteCard({ node, bare }: { node: CardNode; bare?: boolean }) {
   const { w, h } = liteSize(node);
   const yt = !bare && t === 'video' && d.url ? youtubeId(d.url) : null;
   const preview = usePreviewUrl(
-    !bare && (t === 'image' || t === 'scene') ? d.mediaId : undefined,
-    !bare && t === 'image' ? d.url : undefined,
+    bare
+      ? undefined
+      : t === 'image' || t === 'scene'
+        ? d.mediaId
+        : t === 'video' && d.poster && d.poster.of === d.mediaId
+          ? d.poster.id
+          : undefined,
+    // Web pictures can't be shrunk here; from far away they're left out to keep memory low.
+    undefined,
+    TINY,
   );
   const picture = yt ? `https://i.ytimg.com/vi/${yt}/mqdefault.jpg` : preview;
   const title =

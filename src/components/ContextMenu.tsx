@@ -572,12 +572,14 @@ export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentTy
     // is what made phones run out of memory and close the page.
     const size = useMemo(() => (liveNode ? liteSize(liveNode) : { w: 0, h: 0 }), [liveNode]);
     const offscreen = useFlowStore((s) => {
-      if (!light || !s.width) return false;
+      if (!light) return false;
+      // Until the board is zoomed to fit (no saved view yet) the view isn't final: wait.
+      if (!s.width || s.fitViewQueued) return true;
       const [tx, ty, k] = s.transform;
       const { w, h } = size;
       const x = flowProps.positionAbsoluteX * k + tx;
       const y = flowProps.positionAbsoluteY * k + ty;
-      const m = 400;
+      const m = 160;
       return x + w * k < -m || y + h * k < -m || x > s.width + m || y > s.height + m;
     });
     if (light && offscreen) return <LiteCard node={liveNode!} bare />;
