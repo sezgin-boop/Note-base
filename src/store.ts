@@ -14,6 +14,7 @@ import type { RemoteComment, SharedBundle } from './cloud';
 import * as db from './db';
 import { applyHidden, collapseFrame, expandFrame, sectionMembers, sectionsHolding } from './sections';
 import { buildTemplate, type TemplateId } from './templates';
+import { toast } from './ui';
 import type { BoardContent, BoardMeta, CardData, CardEdge, CardNode, CardType, MediaRef } from './types';
 
 interface Snapshot {
@@ -160,6 +161,21 @@ export const justCreated = () => Date.now() - createdAt < 600;
 /** From this many cards on, a board only draws what's on screen and simplifies cards when zoomed far out. */
 export const BIG_BOARD = 150;
 
+/**
+ * Crash-loop guard: while a big board is being opened, remember which one. If the browser kills the
+ * page meanwhile (a phone running out of memory), the next start doesn't open that board again.
+ */
+const OPENING = 'notebase:opening';
+function markOpening(id: string, cards: number) {
+  if (cards <= BIG_BOARD) return;
+  try {
+    localStorage.setItem(OPENING, id);
+    setTimeout(() => localStorage.getItem(OPENING) === id && localStorage.removeItem(OPENING), 10_000);
+  } catch {
+    /* private mode */
+  }
+}
+
 // Cards by id, built once per nodes array (each card looks itself up on every change).
 const indexCache = new WeakMap<CardNode[], Map<string, CardNode>>();
 export function nodeIndex(nodes: CardNode[]): Map<string, CardNode> {
@@ -232,8 +248,18 @@ export const useStore = create<State>((set, get) => {
           boards = get().boards;
         }
         const last = localStorage.getItem('notebase:last');
-        const start = boards.find((b) => b.id === last) ?? boards.find((b) => !b.parentId) ?? boards[0];
+        const crashed = localStorage.getItem(OPENING);
+        localStorage.removeItem(OPENING);
+        const usable = boards.filter((b) => b.id !== crashed);
+        const start = usable.find((b) => b.id === last) ?? usable.find((b) => !b.parentId) ?? usable[0] ?? boards[0];
         await get().openBoard(start.id);
+        if (crashed && crashed !== start.id) {
+          const name = boards.find((b) => b.id === crashed)?.name ?? 'a board';
+          setTimeout(
+            () => toast(`Notebase closed while opening “${name}” last time, so it opened “${start.name}” instead.`, 8000),
+            800,
+          );
+        }
         set({ ready: true });
       })()),
 
@@ -255,6 +281,7 @@ export const useStore = create<State>((set, get) => {
       const shared = get().shared;
       const content = shared ? (shared.contents[id] ?? { nodes: [], edges: [] }) : await db.loadBoard(id);
       if (!shared) localStorage.setItem('notebase:last', id);
+      if (!shared) markOpening(id, content.nodes.length);
       pendingFocus = null;
       set({
         currentId: id,
@@ -271,6 +298,7 @@ export const useStore = create<State>((set, get) => {
     reloadBoard: async (id) => {
       if (id !== get().currentId) return;
       const content = await db.loadBoard(id);
+      markOpening(id, content.nodes.length);
       const selected = new Set(
         get()
           .nodes.filter((n) => n.selected)

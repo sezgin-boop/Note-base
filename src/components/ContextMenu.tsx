@@ -24,7 +24,7 @@ import {
   Unlink,
   type LucideIcon,
 } from 'lucide-react';
-import { memo, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
 import { addPaletteFor } from '../palette';
 import { DRAW_COLORS, DRAW_SIZES, paint, useDraw } from '../draw';
@@ -32,7 +32,7 @@ import { SECTION_LOOKS } from '../sections';
 import { copiedSkin, copySkin, SKIN_TYPES } from './StylePanel';
 import { cardLabel } from '../share/outline';
 import { BIG_BOARD, nodeIndex, useStore, type Background } from '../store';
-import { LITE_TYPES, LITE_ZOOM, LiteCard } from '../nodes/LiteCard';
+import { LITE_TYPES, LITE_ZOOM, LiteCard, liteSize } from '../nodes/LiteCard';
 import type { CardNode, CardType } from '../types';
 import { ACCENTS, TEXT_SIZES } from '../types';
 import { CardContext, CardMeta } from '../nodes/meta';
@@ -560,17 +560,28 @@ export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentTy
     // The card's data straight from the app's store. React Flow hands nodes their props one render
     // later; with those, a text field would briefly get its old text back while you type, which
     // throws the caret to the end (e.g. after deleting a selected word in the middle of a note).
-    const live = useStore((s) => nodeIndex(s.nodes).get(flowProps.id)?.data);
+    const liveNode = useStore((s) => nodeIndex(s.nodes).get(flowProps.id));
+    const live = liveNode?.data;
     const props = live && live !== flowProps.data ? { ...flowProps, data: live } : flowProps;
-    // Far zoomed out on a big board: a light placeholder instead of the whole card.
-    const far = useFlowStore((s) => s.transform[2] < LITE_ZOOM);
     const big = useStore((s) => s.nodes.length > BIG_BOARD);
-    const liteNode = useStore((s) =>
-      far && big && !flowProps.selected && LITE_TYPES.has(flowProps.type as CardType)
-        ? nodeIndex(s.nodes).get(flowProps.id)
-        : undefined,
-    );
-    if (liteNode) return <LiteCard node={liteNode} />;
+    const light = big && !flowProps.selected && LITE_TYPES.has(flowProps.type as CardType) && !!liveNode;
+    // Far zoomed out on a big board: a light card instead of the whole card.
+    const far = useFlowStore((s) => s.transform[2] < LITE_ZOOM);
+    // Off screen on a big board: a bare placeholder. React Flow draws every card once when a board
+    // opens (to find where arrows attach); drawing hundreds of full cards with their photos at once
+    // is what made phones run out of memory and close the page.
+    const size = useMemo(() => (liveNode ? liteSize(liveNode) : { w: 0, h: 0 }), [liveNode]);
+    const offscreen = useFlowStore((s) => {
+      if (!light || !s.width) return false;
+      const [tx, ty, k] = s.transform;
+      const { w, h } = size;
+      const x = flowProps.positionAbsoluteX * k + tx;
+      const y = flowProps.positionAbsoluteY * k + ty;
+      const m = 400;
+      return x + w * k < -m || y + h * k < -m || x > s.width + m || y > s.height + m;
+    });
+    if (light && offscreen) return <LiteCard node={liveNode!} bare />;
+    if (light && far) return <LiteCard node={liveNode!} />;
     return (
       <>
         {props.selected && <CardActions id={props.id} />}

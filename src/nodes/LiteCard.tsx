@@ -1,3 +1,4 @@
+import { estimateHeight } from '../ai/importer';
 import { SIZES } from '../cards';
 import { usePreviewUrl, youtubeId } from '../db';
 import type { CardNode, CardType } from '../types';
@@ -24,13 +25,15 @@ const ICONS: Partial<Record<CardType, string>> = {
  * A card drawn cheaply: its title, picture or color, at exactly the size the full card had, with
  * the connection points so arrows stay attached. Hundreds of these zoom and pan smoothly.
  */
-export function LiteCard({ node }: { node: CardNode }) {
+export function LiteCard({ node, bare }: { node: CardNode; bare?: boolean }) {
   const d = node.data;
   const t = node.type as CardType;
-  const w = node.measured?.width ?? node.width ?? SIZES[t]?.width ?? 260;
-  const h = node.measured?.height ?? node.height ?? SIZES[t]?.height ?? 200;
-  const yt = t === 'video' && d.url ? youtubeId(d.url) : null;
-  const preview = usePreviewUrl(t === 'image' || t === 'scene' ? d.mediaId : undefined, t === 'image' ? d.url : undefined);
+  const { w, h } = liteSize(node);
+  const yt = !bare && t === 'video' && d.url ? youtubeId(d.url) : null;
+  const preview = usePreviewUrl(
+    !bare && (t === 'image' || t === 'scene') ? d.mediaId : undefined,
+    !bare && t === 'image' ? d.url : undefined,
+  );
   const picture = yt ? `https://i.ytimg.com/vi/${yt}/mqdefault.jpg` : preview;
   const title =
     t === 'scene'
@@ -59,4 +62,13 @@ export function LiteCard({ node }: { node: CardNode }) {
       <Handles />
     </div>
   );
+}
+
+/** The size a card takes (as last measured, else its set size, else an estimate). */
+export function liteSize(node: CardNode) {
+  const t = node.type as CardType;
+  return {
+    w: node.measured?.width ?? node.width ?? SIZES[t]?.width ?? 260,
+    h: node.measured?.height ?? node.height ?? SIZES[t]?.height ?? estimateHeight(t, node.data),
+  };
 }
