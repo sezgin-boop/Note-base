@@ -11,6 +11,19 @@ import { STATUS_LABELS } from '../src/types';
 import { boardComments, changeBoard, getBoard, insertBoard, listBoards, mediaUrl, type BoardRow } from './db';
 import { fetchMedia, type Fetched } from './media';
 import { seal } from './seal';
+import {
+  afterManualMove,
+  arrangeFrame,
+  boxOf,
+  descendants,
+  findFrame,
+  LAYOUTS,
+  moveTo,
+  owners,
+  placeInFrame,
+  takeOut,
+  type Layout,
+} from './layout';
 
 export interface ToolContext {
   uid: string;
@@ -129,7 +142,8 @@ const readBoardTool: Tool = {
   description:
     'Read everything on a board as text, in reading order: notes, lists, storyboard scenes, jobs, links, images ' +
     '(with their URLs), videos with their timestamped review comments, sections and the arrows between cards. ' +
-    'Each card shows its id, which update_card, delete_cards and add_cards (links) use.',
+    'Each card shows its id (used by update_card, move_cards, delete_cards and add_cards links) and where it is: ' +
+    'x, y, w, h on the canvas and the id of the section it sits in; each section shows its bounds.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -158,6 +172,7 @@ const readBoardTool: Tool = {
         comments,
         viewUrl: boardLink(ctx, board.id),
         withIds: true,
+        boxOf,
         otherBoards: new Map(all.map((b) => [b.id, { name: b.name, icon: b.icon }])),
       },
     );
@@ -223,7 +238,8 @@ const addCardsTool: Tool = {
       links: {
         type: 'array',
         description:
-          'Arrows: {"from","to","label"?}. from/to are your card refs ("id" above) or ids of cards already on the board.',
+          'Arrows: {"from","to","label"?}. from/to are your card refs ("id" above) or ids of cards already on the board ' +
+          '(cards may then be empty, to only connect existing cards).',
         items: {
           type: 'object',
           properties: { from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string' } },
@@ -231,41 +247,70 @@ const addCardsTool: Tool = {
         },
       },
     },
-    required: ['board', 'cards'],
+    required: ['board'],
   },
   async run(args, ctx) {
     const meta = await resolveBoard(ctx, args.board);
-    const links: { from: string; to: string; label?: string }[] = Array.isArray(args.links) ? args.links : [];
-    const refs = new Set((args.cards ?? []).map((c: any) => c?.id).filter(Boolean));
-    const parsed = parseImport(
-      JSON.stringify({
-        section: args.section,
-        cards: args.cards ?? [],
-        links: links.filter((l) => refs.has(l.from) && refs.has(l.to)),
-      }),
-    );
+    const links: { from: string; to: string; label?: string }[] = (Array.isArray(args.links) ? args.links : [])
+      .filter((l: any) => l && l.from != null && l.to != null)
+      .map((l: any) => ({ from: String(l.from).trim(), to: String(l.to).trim(), label: l.label ? String(l.label) : undefined }));
+    const rawCards = Array.isArray(args.cards) ? args.cards : [];
+    if (!rawCards.length && !links.length) throw new Error('Give "cards" to add, or "links" between cards.');
+    const refs = new Set<string>(rawCards.map((c: any) => (c?.id != null ? String(c.id).trim() : '')).filter(Boolean));
+    // Arrows between new cards are laid out with them; every other arrow is resolved below.
+    const parsed = rawCards.length
+      ? parseImport(
+          JSON.stringify({
+            section: args.section,
+            cards: rawCards,
+            links: links.filter((l) => refs.has(l.from) && refs.has(l.to)),
+          }),
+        )
+      : null;
     const { result } = await changeBoard(ctx.uid, meta.id, (content) => {
-      const withSection = args.group ?? (!!args.section || parsed.cards.length > 3);
-      const { nodes, edges, byRef: newByRef } = buildImport(parsed, freeSpot(content), withSection);
-      // Arrows to or from cards that were already on the board.
+      const withSection = args.group ?? (!!args.section || (parsed?.cards.length ?? 0) > 3);
+      const built = parsed
+        ? buildImport(parsed, freeSpot(content), withSection)
+        : { nodes: [] as CardNode[], edges: [] as CardEdge[], byRef: new Map<string, CardNode>() };
+      const { nodes, edges, byRef: newByRef } = built;
+      // Arrows to or from cards that were already on the board (a new card's ref wins over an id).
       const existing = new Map(content.nodes.map((n) => [n.id, n]));
+      const skipped: string[] = [];
+      let linked = edges.length;
       for (const l of links) {
         if (refs.has(l.from) && refs.has(l.to)) continue;
         const a = newByRef.get(l.from) ?? existing.get(l.from);
         const b = newByRef.get(l.to) ?? existing.get(l.to);
-        if (a && b && a !== b) edges.push(edgeBetween(a, b, l.label?.slice(0, 80)));
+        if (!a || !b) {
+          skipped.push(`${l.from} → ${l.to} (no card ${!a ? l.from : l.to})`);
+          continue;
+        }
+        if (a === b) {
+          skipped.push(`${l.from} → ${l.to} (same card)`);
+          continue;
+        }
+        if (content.edges.some((e) => e.source === a.id && e.target === b.id)) {
+          skipped.push(`${l.from} → ${l.to} (already connected)`);
+          continue;
+        }
+        edges.push(edgeBetween(a, b, l.label?.slice(0, 80)));
+        linked++;
       }
       content.nodes.push(...nodes);
       content.edges.push(...edges);
       const frame = nodes.find((n) => n.type === 'frame');
       if (args.collapsed && frame) content.nodes = applyHidden(collapseFrame(content.nodes, frame.id));
-      return { nodes, edges };
+      return { nodes, linked, skipped };
     });
-    return (
-      `Added to "${meta.name}": ${summarize(parsed)}.\n` +
-      `New cards: ${result.nodes.map(describe).join(', ')}\n` +
-      `Open: ${boardLink(ctx, meta.id)}`
-    );
+    return [
+      parsed ? `Added to "${meta.name}": ${summarize(parsed)}.` : `Updated "${meta.name}".`,
+      result.nodes.length ? `New cards: ${result.nodes.map(describe).join(', ')}` : '',
+      links.length || result.linked ? `Arrows added: ${result.linked}.` : '',
+      result.skipped.length ? `Arrows not added: ${result.skipped.join('; ')}.` : '',
+      `Open: ${boardLink(ctx, meta.id)}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
   },
 };
 
@@ -391,12 +436,20 @@ const updateCardTool: Tool = {
     `list's items, or style (the card's whole look: one of ${PRESETS.map((p) => p.id).join(', ')}, a color ` +
     '{"kind":"color","from":"#hex","to":"#hex"} or "default"). Scenes also take hideFrame (true hides the picture area). ' +
     'Sections also take collapsed (true folds the section into a compact bar, false opens it), icon (an ' +
-    'emoji) and look (tint, solid, outline, dashed). Only the given fields change; an empty string clears a field.',
+    'emoji) and look (tint, solid, outline, dashed). Only the given fields change; an empty string clears a field. ' +
+    'To move the card (it keeps its id, comments and arrows): "section" puts it in that section (id or title; without ' +
+    'x / y it takes the next free spot inside and the section grows to fit; null takes it out), "x" / "y" set its ' +
+    'position on the canvas (same coordinates as read_board), "w" / "h" its size. Moving a section moves its cards too.',
   inputSchema: {
     type: 'object',
     properties: {
       board: BOARD_ARG,
       card: { type: 'string', description: 'Card id.' },
+      section: { type: ['string', 'null'], description: 'Move into this section (id or title); null = take it out.' },
+      x: { type: 'number', description: 'New x on the canvas.' },
+      y: { type: 'number', description: 'New y on the canvas.' },
+      w: { type: 'number', description: 'New width.' },
+      h: { type: 'number', description: 'New height.' },
       changes: {
         type: 'object',
         description:
@@ -405,15 +458,30 @@ const updateCardTool: Tool = {
         additionalProperties: true,
       },
     },
-    required: ['board', 'card', 'changes'],
+    required: ['board', 'card'],
   },
   annotations: { idempotentHint: true },
   async run(args, ctx) {
     const meta = await resolveBoard(ctx, args.board);
-    const { collapsed, ...changes } = args.changes && typeof args.changes === 'object' ? args.changes : ({} as any);
+    const {
+      collapsed,
+      section: sectionIn,
+      x: xIn,
+      y: yIn,
+      w: wIn,
+      h: hIn,
+      ...changes
+    } = args.changes && typeof args.changes === 'object' ? args.changes : ({} as any);
+    // Position fields may come at the top level or inside "changes".
+    const section = args.section !== undefined ? args.section : sectionIn;
+    const num = (v: unknown) =>
+      v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? undefined : Number(v);
+    const move = { x: num(args.x ?? xIn), y: num(args.y ?? yIn), w: num(args.w ?? wIn), h: num(args.h ?? hIn) };
     const { result } = await changeBoard(ctx.uid, meta.id, (content) => {
       let node = content.nodes.find((n) => n.id === args.card);
       if (!node) throw new Error(`No card with id ${args.card} on "${meta.name}". Use read_board to see card ids.`);
+      const moved = relocate(content, node, section, move);
+      node = content.nodes.find((n) => n.id === args.card)!;
       if (typeof collapsed === 'boolean') {
         if (node.type !== 'frame') throw new Error('Only sections can be collapsed.');
         content.nodes = applyHidden((collapsed ? collapseFrame : expandFrame)(content.nodes, node.id));
@@ -462,11 +530,158 @@ const updateCardTool: Tool = {
       if (patch.status) patch.status = patch.status as ProjectStatus;
       node.data = { ...node.data, ...patch };
       for (const k of Object.keys(node.data)) if (node.data[k] === undefined) delete node.data[k];
-      return { node, skipped };
+      return { node, skipped, moved };
     });
     return (
       `Updated ${describe(result.node)} on "${meta.name}".` +
+      (result.moved ? ` ${result.moved}` : '') +
       (result.skipped.length ? ` Ignored: ${result.skipped.join(', ')}.` : '') +
+      `\nOpen: ${boardLink(ctx, meta.id)}`
+    );
+  },
+};
+
+/** Where a card is, for tool results: "now at x 10, y 20 (280×200) in section abc". */
+function whereText(content: BoardContent, id: string) {
+  const n = content.nodes.find((c) => c.id === id)!;
+  const b = boxOf(n);
+  const sec = owners(content.nodes).get(id);
+  return `now at x ${b.x}, y ${b.y} (${b.w}×${b.h})${sec ? ` in section ${sec}` : ', outside sections'}`;
+}
+
+/**
+ * Move / resize a card in place (update_card): `section` (id or title, null = out), x / y, w / h.
+ * Returns a sentence about what happened, or '' when nothing was asked.
+ */
+function relocate(
+  content: BoardContent,
+  node: CardNode,
+  section: unknown,
+  move: { x?: number; y?: number; w?: number; h?: number },
+): string {
+  const hasXY = move.x !== undefined || move.y !== undefined;
+  if (section === undefined && !hasXY && move.w === undefined && move.h === undefined) return '';
+  if (move.w !== undefined || move.h !== undefined) {
+    const w = move.w !== undefined ? Math.max(40, Math.round(move.w)) : undefined;
+    const h = move.h !== undefined ? Math.max(30, Math.round(move.h)) : undefined;
+    if (node.type === 'frame' && node.data.collapsed) {
+      const open = node.data.openSize ?? { width: 560, height: 380 };
+      node.data.openSize = { width: w ?? open.width, height: h ?? open.height };
+    } else {
+      if (w !== undefined) node.width = w;
+      // Notes and lists grow with their text: a height is the least they take.
+      if (h !== undefined) {
+        if (node.type === 'note' || node.type === 'todo') node.data.minH = h;
+        else node.height = h;
+      }
+      delete node.measured; // the app measures it again
+    }
+  }
+  if (hasXY) moveTo(content, node, move.x ?? node.position.x, move.y ?? node.position.y);
+
+  if (section === null || section === '') {
+    if (!hasXY) takeOut(content, [node]);
+    else afterManualMove(content, node, null);
+  } else if (section !== undefined) {
+    const frame = findFrame(content, String(section));
+    if (frame.id === node.id || (node.type === 'frame' && descendants(content, node.id).some((d) => d.id === frame.id)))
+      throw new Error("A section can't go inside itself.");
+    if (hasXY) {
+      const f = boxOf(frame);
+      const b = boxOf(node);
+      if (!(b.x + b.w / 2 >= f.x && b.y + b.h / 2 >= f.y))
+        throw new Error(
+          `x / y put the card outside section ${frame.id} (it starts at x ${f.x}, y ${f.y}). Leave x / y out to place it automatically.`,
+        );
+      afterManualMove(content, node, frame);
+    } else if (owners(content.nodes).get(node.id) !== frame.id) placeInFrame(content, frame, [node], 'free');
+  } else afterManualMove(content, node, null);
+  return `Moved: ${whereText(content, node.id)}.`;
+}
+
+const moveCardsTool: Tool = {
+  name: 'move_cards',
+  title: 'Move cards into a section',
+  description:
+    'Move existing cards into one section in a single call, without recreating them (ids, comments, video review ' +
+    'notes and arrows stay). They are laid out inside the section in the given order, left to right in rows under ' +
+    'what is already there, without overlaps, and the section grows to fit. Moving a section moves its cards too. ' +
+    'To re-lay out a whole section afterwards use arrange_section.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      board: BOARD_ARG,
+      cards: { type: 'array', items: { type: 'string' }, description: 'Ids of the cards to move.' },
+      section: { type: 'string', description: 'Id or title of the section to move them into.' },
+      order: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional order to lay them out in (ids); cards not listed follow in the "cards" order.',
+      },
+    },
+    required: ['board', 'cards', 'section'],
+  },
+  async run(args, ctx) {
+    const meta = await resolveBoard(ctx, args.board);
+    const ids: string[] = [...new Set<string>((Array.isArray(args.cards) ? args.cards : []).map(String))];
+    if (!ids.length) throw new Error('Give the ids of the cards to move in "cards".');
+    const order: string[] = (Array.isArray(args.order) ? args.order : []).map(String).filter((id: string) => ids.includes(id));
+    const sequence = [...new Set([...order, ...ids])];
+    const { result } = await changeBoard(ctx.uid, meta.id, (content) => {
+      const frame = findFrame(content, String(args.section ?? ''));
+      const missing = sequence.filter((id) => !content.nodes.some((n) => n.id === id));
+      const cards = sequence.map((id) => content.nodes.find((n) => n.id === id)).filter(Boolean) as CardNode[];
+      for (const c of cards)
+        if (c.id === frame.id || (c.type === 'frame' && descendants(content, c.id).some((d) => d.id === frame.id)))
+          throw new Error(`Section ${c.id} can't go inside itself.`);
+      // Cards inside a section that is moving along go with it, not separately.
+      const carried = new Set(
+        cards.filter((c) => c.type === 'frame').flatMap((c) => descendants(content, c.id).map((d) => d.id)),
+      );
+      const list = cards.filter((c) => !carried.has(c.id));
+      if (list.length) placeInFrame(content, frame, list, 'flow');
+      const f = boxOf(content.nodes.find((n) => n.id === frame.id)!);
+      return { moved: list.map((c) => c.id), missing, frame: frame.id, size: `${f.w}×${f.h}` };
+    });
+    return (
+      `Moved ${result.moved.length} card${result.moved.length === 1 ? '' : 's'} into section ${result.frame} on "${meta.name}" ` +
+      `(section now ${result.size}).` +
+      (result.missing.length ? ` Not found: ${result.missing.join(', ')}.` : '') +
+      `\nOpen: ${boardLink(ctx, meta.id)}`
+    );
+  },
+};
+
+const arrangeSectionTool: Tool = {
+  name: 'arrange_section',
+  title: 'Arrange a section',
+  description:
+    'Lay out the cards of one section again, tightly and without overlaps, and fit the section around them. Cards keep ' +
+    'their ids, comments and arrows. Layouts: "reference" — videos then images in the top row, scenes in number order ' +
+    'left to right (wrapping), notes labelled "3D", "3D tricks" or "Build" in a column on the right, then the reference ' +
+    'note followed by the other notes and cards, and color cards in a bottom row. "grid" — every card in reading order, ' +
+    'left to right, wrapping at the section width.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      board: BOARD_ARG,
+      section: { type: 'string', description: 'Id or title of the section.' },
+      layout: { type: 'string', enum: [...LAYOUTS], description: 'Default "reference".' },
+    },
+    required: ['board', 'section'],
+  },
+  async run(args, ctx) {
+    const meta = await resolveBoard(ctx, args.board);
+    const layout = (LAYOUTS as readonly string[]).includes(args.layout) ? (args.layout as Layout) : 'reference';
+    const { result } = await changeBoard(ctx.uid, meta.id, (content) => {
+      const frame = findFrame(content, String(args.section ?? ''));
+      const { moved } = arrangeFrame(content, frame, layout);
+      const f = boxOf(content.nodes.find((n) => n.id === frame.id)!);
+      return { moved, frame: frame.id, box: f };
+    });
+    return (
+      `Arranged ${result.moved} card${result.moved === 1 ? '' : 's'} in section ${result.frame} ("${layout}" layout). ` +
+      `The section is now at x ${result.box.x}, y ${result.box.y}, ${result.box.w}×${result.box.h}.` +
       `\nOpen: ${boardLink(ctx, meta.id)}`
     );
   },
@@ -586,11 +801,24 @@ const uploadLinkTool: Tool = {
     '(valid 60 minutes) that puts uploaded images and videos onto a board as cards. If you have a code sandbox that holds ' +
     'the files and can reach the internet, upload each one yourself with the curl command from the result. Otherwise ' +
     'give the user the page link: they open it, pick the files from their phone or computer, and the cards appear.',
-  inputSchema: { type: 'object', properties: { board: BOARD_ARG }, required: ['board'] },
+  inputSchema: {
+    type: 'object',
+    properties: {
+      board: BOARD_ARG,
+      section: { type: 'string', description: 'Optional: id or title of a section the files should go into.' },
+    },
+    required: ['board'],
+  },
   async run(args, ctx) {
     const meta = await resolveBoard(ctx, args.board);
+    if (args.section) {
+      const board = await getBoard(ctx.uid, meta.id);
+      findFrame(board?.content ?? { nodes: [], edges: [] }, String(args.section)); // fails early if there is no such section
+    }
     const token = await seal({ t: 'upload', uid: ctx.uid, board: meta.id, exp: Math.floor(Date.now() / 1000) + 3600 });
-    const link = `${ctx.origin}/api/upload?t=${encodeURIComponent(token)}`;
+    const link =
+      `${ctx.origin}/api/upload?t=${encodeURIComponent(token)}` +
+      (args.section ? `&section=${encodeURIComponent(String(args.section))}` : '');
     return [
       `Upload link for "${meta.name}" (valid 60 minutes).`,
       '',
@@ -599,7 +827,8 @@ const uploadLinkTool: Tool = {
       '',
       'From a code sandbox, one request per file (max 4 MB each — shrink bigger photos first, e.g. to 2560 px JPEG):',
       `curl -sS -X POST --data-binary @"/path/to/photo.jpg" -H "content-type: image/jpeg" "${link}&name=photo.jpg"`,
-      'Optional: &caption=… . Each file becomes an image / video card; files from this link are laid out together.',
+      'Optional: &caption=… . Each file becomes an image / video card; files from this link are laid out together' +
+        (args.section ? ', inside the section.' : '. Add &section=<section id or title> to put them in a section.'),
       `Open the board: ${boardLink(ctx, meta.id)}`,
     ].join('\n');
   },
@@ -612,6 +841,8 @@ export const TOOLS: Tool[] = [
   addCardsTool,
   addMediaTool,
   updateCardTool,
+  moveCardsTool,
+  arrangeSectionTool,
   deleteCardsTool,
   createBoardTool,
   uploadLinkTool,
@@ -620,6 +851,8 @@ export const TOOLS: Tool[] = [
 export const INSTRUCTIONS =
   "Notebase is the user's visual canvas for notes, plans, storyboards, moodboards, client jobs and video reviews. " +
   'Start with list_boards (or search), read_board before editing, then add_cards / add_media / update_card. ' +
+  'To reorganise, move cards (update_card with section / x / y, move_cards, arrange_section) instead of deleting and ' +
+  're-adding them: moving keeps their comments, review notes and arrows. ' +
   "Lay out storyboards as scene cards connected with arrows in order. Changes appear in the user's app within " +
   'about 30 seconds; share the "Open" link from the result so they can jump to the board. Photos or videos the user ' +
   'attaches in the chat: call get_upload_link and upload them from your code sandbox, or give the user the link.';

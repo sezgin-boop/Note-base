@@ -3,11 +3,12 @@
 //   POST /api/upload?t=…&name=…               → the file as the request body (≤ 4 MB; for scripts / curl)
 //   POST /api/upload?t=…&step=sign&type=…     → an address to send a bigger file to directly
 //   POST /api/upload?t=…&step=done&id=…&type=… → put that file on the board
+// Add &section=<section id or title> to any of them to put the files inside that section.
 // Every file becomes an image or video card on the board the link was made for.
 
 import { nanoid } from 'nanoid';
 import { connectorReady, originOf } from '../server/env';
-import { getBoard, mediaExists, signedUploadUrl, uploadMedia } from '../server/db';
+import { BoardBusyError, getBoard, mediaExists, signedUploadUrl, uploadMedia } from '../server/db';
 import { imageAspect } from '../server/media';
 import { unseal } from '../server/seal';
 import { MAX_DIRECT, MAX_FILE, placeUpload, uploadKind } from '../server/uploads';
@@ -36,12 +37,13 @@ export default async function handler(req: Request): Promise<Response> {
   const board = await getBoard(link.uid, link.board);
   if (!board) return json({ error: 'The board no longer exists.' }, 404);
 
-  if (req.method === 'GET') return uploadPage(board.name, board.id, token, link.exp);
+  if (req.method === 'GET') return uploadPage(board.name, board.id, token, link.exp, url.searchParams.get('section'));
   if (req.method !== 'POST') return json({ error: 'Use POST.' }, 405);
 
   const step = url.searchParams.get('step');
   const type = (url.searchParams.get('type') || req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
   const caption = url.searchParams.get('caption')?.slice(0, 300) || undefined;
+  const section = url.searchParams.get('section')?.slice(0, 200) || null;
   if (!uploadKind(type)) return json({ error: `Only images and videos can be uploaded (got "${type || 'unknown'}").` }, 415);
 
   try {
@@ -55,7 +57,7 @@ export default async function handler(req: Request): Promise<Response> {
       const id = url.searchParams.get('id') ?? '';
       if (!/^[\w-]{21}$/.test(id) || !(await mediaExists(id))) return json({ error: 'The file did not arrive.' }, 400);
       const aspect = Number(url.searchParams.get('aspect')) || null;
-      const { node } = await placeUpload(link.uid, link.board, token, { mediaId: id, type, caption, aspect });
+      const { node } = await placeUpload(link.uid, link.board, token, { mediaId: id, type, caption, aspect }, section);
       return json({ ok: true, card: node.id, board: board.name });
     }
     // Direct upload: the file is the body.
@@ -70,9 +72,20 @@ export default async function handler(req: Request): Promise<Response> {
       .get('name')
       ?.replace(/\.[a-z0-9]+$/i, '')
       .slice(0, 120);
-    const { node } = await placeUpload(link.uid, link.board, token, { mediaId: id, type, caption: caption ?? name, aspect });
+    const { node } = await placeUpload(
+      link.uid,
+      link.board,
+      token,
+      { mediaId: id, type, caption: caption ?? name, aspect },
+      section,
+    );
     return json({ ok: true, card: node.id, board: board.name, open: `${originOf(req)}/?board=${link.board}` });
   } catch (e) {
+    if (e instanceof BoardBusyError)
+      return new Response(JSON.stringify({ error: e.message, retry_after: e.retryAfter }), {
+        status: 503,
+        headers: { 'content-type': 'application/json', 'retry-after': String(e.retryAfter), ...CORS },
+      });
     return json({ error: (e as Error).message }, 500);
   }
 }
@@ -116,7 +129,7 @@ small{display:block;color:var(--muted);font-size:12px;margin-top:14px;text-align
   );
 }
 
-function uploadPage(boardName: string, boardId: string, token: string, exp: number) {
+function uploadPage(boardName: string, boardId: string, token: string, exp: number, section: string | null) {
   const minutes = Math.max(1, Math.round((exp - Date.now() / 1000) / 60));
   const body = `<div class="logo">✦</div>
 <h1>Add to “${esc(boardName)}”</h1>
@@ -128,7 +141,8 @@ function uploadPage(boardName: string, boardId: string, token: string, exp: numb
 <small>This link works for ${minutes} more minutes.</small>`;
   const script = `
 const T = ${JSON.stringify(token)};
-const api = (q) => '/api/upload?t=' + encodeURIComponent(T) + '&' + new URLSearchParams(q);
+const S = ${JSON.stringify(section ?? '')};
+const api = (q) => '/api/upload?t=' + encodeURIComponent(T) + '&' + new URLSearchParams(S ? { ...q, section: S } : q);
 const list = document.getElementById('list');
 const aspectOf = (file) => new Promise((res) => {
   if (!file.type.startsWith('image/')) return res(null);

@@ -47,16 +47,50 @@ export async function getBoard(uid: string, id: string): Promise<BoardRow | null
   return rows[0] ? toRow(rows[0]) : null;
 }
 
+/** The board kept changing while a write tried to land; try again after `retryAfter` seconds. */
+export class BoardBusyError extends Error {
+  retryAfter = 2;
+  constructor() {
+    super(
+      'The board is being edited right now and the change could not be saved. Please retry in about 2 seconds (retry_after: 2s).',
+    );
+  }
+}
+
+// Writes to the same board from this server instance wait for each other instead of colliding.
+const queues = new Map<string, Promise<unknown>>();
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * Change a board's content. Only succeeds if nobody saved the board in between (otherwise it
- * re-reads and tries again), and stamps a newer `updated_at` so the apps pull the change.
+ * Change a board's content. The change is applied to the latest saved version and only stored if
+ * nobody saved the board in between; otherwise it is applied again to the newer version (so
+ * concurrent edits merge instead of overwriting each other), with short, growing waits. Writes from
+ * this instance to one board are queued. Stamps a newer `updated_at` so the apps pull the change.
  */
 export async function changeBoard<T>(
   uid: string,
   id: string,
   fn: (content: BoardContent, board: BoardRow) => T,
 ): Promise<{ result: T; board: BoardRow }> {
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const key = `${uid}:${id}`;
+  const prev = queues.get(key) ?? Promise.resolve();
+  const run = prev.catch(() => {}).then(() => attemptChange(uid, id, fn));
+  queues.set(key, run);
+  try {
+    return await run;
+  } finally {
+    if (queues.get(key) === run) queues.delete(key);
+  }
+}
+
+async function attemptChange<T>(
+  uid: string,
+  id: string,
+  fn: (content: BoardContent, board: BoardRow) => T,
+): Promise<{ result: T; board: BoardRow }> {
+  const ATTEMPTS = 8;
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    if (attempt) await sleep(Math.min(1200, 60 * 2 ** attempt) * (0.5 + Math.random()));
     const board = await getBoard(uid, id);
     if (!board) throw new Error('Board not found.');
     const content = structuredClone(board.content!);
@@ -69,7 +103,7 @@ export async function changeBoard<T>(
     });
     if (rows.length) return { result, board: { ...board, content, updatedAt } };
   }
-  throw new Error('The board is being edited right now; please try again.');
+  throw new BoardBusyError();
 }
 
 export async function insertBoard(

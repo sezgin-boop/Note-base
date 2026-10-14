@@ -217,7 +217,7 @@ export function summarize(p: ParsedImport) {
 // ---------- Layout ----------
 
 /** Rough rendered height, good enough to keep imported cards from overlapping. */
-function estimateHeight(type: CardType, d: CardData) {
+export function estimateHeight(type: CardType, d: CardData) {
   const textLines = (s?: string, perLine = 34) =>
     (s ?? '').split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0);
   switch (type) {

@@ -176,13 +176,25 @@ your boards as a connector. It needs the cloud set up first.
 Changes show up in the app within about 30 seconds; Claude also gives you a link that opens the board.
 
 What it can do: `list_boards`, `read_board`, `search`, `add_cards`, `add_media` (images and videos from links are copied
-into your storage; YouTube / Vimeo become video cards; other pages become link cards), `update_card`, `delete_cards`,
-`create_board`, `get_upload_link`.
+into your storage; YouTube / Vimeo become video cards; other pages become link cards), `update_card`, `move_cards`,
+`arrange_section`, `delete_cards`, `create_board`, `get_upload_link`.
+
+**Reorganising without losing anything:** cards are moved, never deleted and re-added, so their ids, client comments,
+video review notes and arrows stay. `read_board` shows each card's `x, y, w, h` and section id, and each section's bounds.
+`update_card` takes `section` (id or title; `null` takes the card out), `x` / `y` and `w` / `h` — a card moved into a
+section without a position takes the next free spot and the section grows to fit (cards next to it move aside instead
+of being swallowed). `move_cards` moves many cards into one section in a given order; `arrange_section` re-lays out a
+section (`reference`: videos and images on top, scenes in number order, "3D" / "3D tricks" / "Build" notes in a right
+column, the reference note and other notes below, colors at the bottom; or `grid`). `add_cards` can also just connect
+cards that are already on the board (`links` with their ids, no `cards`). Writes to the same board are queued and, if
+the board changed in the meantime, re-applied to the newer version; if it keeps changing, the error says to retry in
+about 2 seconds.
 
 **Photos from the chat:** Claude can't hand files from a chat to a connector, so `get_upload_link` makes a link (valid
 an hour) for one board. Claude's code sandbox can upload the files to it directly when it is allowed to reach your site
 (Claude → Settings → Capabilities → code execution network access); otherwise Claude gives you the link — open it, pick
-the photos or videos (up to 50 MB each) and they appear on the board, laid out together.
+the photos or videos (up to 50 MB each) and they appear on the board, laid out together. With a `section` (or
+`&section=<id or title>` on the link) they land inside that section.
 
 **Security:** signing in only works for Claude's own addresses, and every action is limited to your account. Removing the
 connector in Claude disconnects it; to cut off every connected app at once, create a new secret key in Supabase, put it

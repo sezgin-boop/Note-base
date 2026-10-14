@@ -37,12 +37,16 @@ export interface OutlineOptions {
   appendix?: string;
   /** Show card ids (Markdown only), so a tool can refer to cards when editing. */
   withIds?: boolean;
+  /** Show where each card is (x, y, w, h and its section) and each section's bounds (Markdown only). */
+  boxOf?: (n: CardNode) => { x: number; y: number; w: number; h: number };
   /** Names of sub-boards that aren't included in the outline. */
   otherBoards?: Map<string, { name: string; icon: string }>;
 }
 
 interface Item {
   id?: string;
+  /** Position, size and section, e.g. "x 120, y 40, w 280, h 200, section: abc". */
+  geo?: string;
   icon: string;
   kind: string;
   title?: string;
@@ -56,6 +60,7 @@ interface Item {
 
 interface Section {
   id?: string;
+  geo?: string;
   title: string | null;
   items: Item[];
 }
@@ -264,14 +269,15 @@ function buildDoc(board: OutlineBoard, boardsById: Map<string, OutlineBoard>, op
   const cards = nodes.filter((n) => n.type !== 'frame');
 
   // A card belongs to the smallest section whose box contains its center.
+  const sizeOf = opts.boxOf ? (n: CardNode) => opts.boxOf!(n) : size;
   const owner = new Map<string, string | null>();
   for (const c of cards) {
-    const { w, h } = size(c);
+    const { w, h } = sizeOf(c);
     const cx = c.position.x + w / 2;
     const cy = c.position.y + h / 2;
     let best: { id: string; area: number } | null = null;
     for (const f of frames) {
-      const fs = size(f);
+      const fs = sizeOf(f);
       if (cx >= f.position.x && cx <= f.position.x + fs.w && cy >= f.position.y && cy <= f.position.y + fs.h) {
         const area = fs.w * fs.h;
         if (!best || area < best.area) best = { id: f.id, area };
@@ -284,7 +290,9 @@ function buildDoc(board: OutlineBoard, boardsById: Map<string, OutlineBoard>, op
     readingOrder(list)
       .map((n) => {
         const it = withPlanning(toItem(n, boardsById, opts), n);
-        return it && opts.withIds ? { ...it, id: n.id } : it;
+        if (!it) return it;
+        const geo = opts.boxOf ? `${geoText(opts.boxOf(n))}, section: ${owner.get(n.id) ?? 'none'}` : undefined;
+        return opts.withIds ? { ...it, id: n.id, ...(geo ? { geo } : {}) } : it;
       })
       .filter(Boolean) as Item[];
 
@@ -294,6 +302,7 @@ function buildDoc(board: OutlineBoard, boardsById: Map<string, OutlineBoard>, op
   for (const f of readingOrder(frames)) {
     sections.push({
       id: opts.withIds ? f.id : undefined,
+      geo: opts.boxOf ? `${geoText(opts.boxOf(f))}${f.data.collapsed ? ', collapsed' : ''}` : undefined,
       title: `${f.data.icon ? `${f.data.icon} ` : ''}${f.data.title || 'Section'}${f.data.collapsed ? ' (collapsed)' : ''}`,
       items: itemsOf(cards.filter((c) => owner.get(c.id) === f.id)),
     });
@@ -358,7 +367,7 @@ export function boardsToMarkdown(boards: OutlineBoard[], opts: OutlineOptions): 
     if (i > 0) out.push('---', '', `# ${d.icon} ${d.name}`, '');
     if (d.path.length) out.push(`_Location: ${d.path.join(' / ')} / ${d.name}_`, '');
     for (const s of d.sections) {
-      if (s.title) out.push(`## ${s.title}${s.id ? ` \`id: ${s.id}\`` : ''}`, '');
+      if (s.title) out.push(`## ${s.title}${s.id ? ` \`id: ${s.id}\`` : ''}${s.geo ? ` (${s.geo})` : ''}`, '');
       if (!s.items.length) out.push('_(empty)_', '');
       for (const it of s.items) out.push(...itemMd(it));
       if (s.items.length) out.push('');
@@ -376,12 +385,15 @@ export function boardsToMarkdown(boards: OutlineBoard[], opts: OutlineOptions): 
   );
 }
 
+const geoText = (b: { x: number; y: number; w: number; h: number }) =>
+  `x ${Math.round(b.x)}, y ${Math.round(b.y)}, w ${Math.round(b.w)}, h ${Math.round(b.h)}`;
+
 function itemMd(it: Item): string[] {
   const head = [`${it.icon} ${it.kind}`];
   if (it.title) head.push(`**${it.title.replace(/\n/g, ' ')}**`);
   if (it.meta?.length) head.push(it.meta.filter(Boolean).join(' · '));
   if (it.link) head.push(`[${it.link.text}](${it.link.url})`);
-  const out = [`- ${head.join(' — ')}${it.id ? ` \`id: ${it.id}\`` : ''}`];
+  const out = [`- ${head.join(' — ')}${it.id ? ` \`id: ${it.id}\`` : ''}${it.geo ? ` (${it.geo})` : ''}`];
   for (const l of it.lines ?? []) out.push(`  ${l}`.trimEnd() || '  ');
   for (const c of it.checklist ?? []) out.push(`  - [${c.done ? 'x' : ' '}] ${c.text}`);
   if (it.image) out.push(`  ![${it.image.alt}](${it.image.url})`);

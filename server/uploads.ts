@@ -6,6 +6,7 @@ import { makeCard } from '../src/cards';
 import type { CardNode } from '../src/types';
 import { changeBoard } from './db';
 import { sha256b64url } from './seal';
+import { findFrame, placeInFrame } from './layout';
 import { freeSpot } from './tools';
 
 export const UPLOAD_TTL = 60 * 60;
@@ -23,9 +24,23 @@ export async function placeUpload(
   boardId: string,
   token: string,
   f: { mediaId: string; type: string; caption?: string; aspect?: number | null },
+  /** Put it inside this section (id or title) instead of the link's own grid. */
+  section?: string | null,
 ) {
   const batch = (await sha256b64url(token)).slice(0, 10);
   const { result, board } = await changeBoard(uid, boardId, (content) => {
+    // Into a section: the next free spot inside it (the section grows to fit).
+    if (section) {
+      const frame = findFrame(content, section);
+      const kind = uploadKind(f.type)!;
+      const node: CardNode = makeCard(kind, frame.position, { mediaId: f.mediaId, caption: f.caption, batch });
+      node.width = 280;
+      if (kind === 'image' && f.aspect && f.aspect > 0)
+        node.height = Math.round(Math.min(560, Math.max(120, 280 / f.aspect)) + 44);
+      content.nodes.push(node);
+      placeInFrame(content, frame, [node], 'free');
+      return content.nodes.find((n) => n.id === node.id)!;
+    }
     const siblings = content.nodes.filter((n) => n.data.batch === batch);
     const first = siblings[0];
     const anchor = first ? first.position : freeSpot(content);
