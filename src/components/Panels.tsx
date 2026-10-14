@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadBoard } from '../db';
 import { DeadlineBadge, daysLeft } from '../nodes/WorkNodes';
 import { boardPath, useStore } from '../store';
+import { useFind } from './BoardSearch';
 import type { BoardMeta, CardNode, ProjectStatus } from '../types';
 import { STATUS_COLORS, STATUS_LABELS } from '../types';
 import { EmojiPicker } from './Sidebar';
@@ -63,6 +64,7 @@ export function Topbar() {
           <span className="badge">
             <Eye size={12} /> View only
           </span>
+          <FindButton />
           <button
             className="top-btn"
             title="Copy the board as text for an AI"
@@ -79,6 +81,7 @@ export function Topbar() {
           <span className="muted small status-text">
             {nodes.length} cards · {cloudConfigured && user ? <SyncLabel /> : 'saved on this device'}
           </span>
+          <FindButton />
           <ThemePicker variant="top" />
           <TagFilter />
           <ExportMenu />
@@ -91,6 +94,14 @@ export function Topbar() {
         </>
       )}
     </header>
+  );
+}
+
+function FindButton() {
+  return (
+    <button className="top-btn" title="Find on this board (⌘F)" onClick={() => useFind.getState().setOpen(true)}>
+      <Search size={14} /> <span className="hide-sm">Find</span>
+    </button>
   );
 }
 

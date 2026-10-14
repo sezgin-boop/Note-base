@@ -15,6 +15,7 @@ import { toast } from './ui';
 import { AccountDialog, InstallDialog, InstallHint, ShareDialog, Toasts } from './components/Dialogs';
 import { startSync } from './sync';
 import { Canvas } from './components/Canvas';
+import { BoardSearch } from './components/BoardSearch';
 import { JobsPanel, Lightbox, SearchPalette, Topbar } from './components/Panels';
 import { Sidebar } from './components/Sidebar';
 import { TOOLS, Toolbar, useAddAtCenter } from './components/Toolbar';
@@ -196,6 +197,7 @@ export default function App() {
         )}
         <main className="main">
           <Topbar />
+          <BoardSearch />
           <Canvas />
           {!readOnly && <Toolbar />}
           <DrawToolbar />

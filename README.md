@@ -75,6 +75,7 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Tags: set them on a card or just write `#hashtags` in its text, then filter the board by tag from the top bar
 - Jobs panel (⌘J): every job across all boards, sorted by due date, with overdue count and paid / awaiting payment totals
 - Search (⌘K) across all boards, cards and tags
+- Find on this board (⌘F or the magnifier in the top bar): searches every text on the open board — notes, lists, captions, scene audio / prompts, comments, tags, even folded sections — and jumps to the best match as you type, so typing a product code takes you straight to its card. ↵ / ⇧↵ step through the matches
 
 **Capture & export**
 
@@ -227,6 +228,7 @@ in Vercel and delete the old one.
 | ⌘Z / ⇧⌘Z | Undo / redo | ⌘D | Duplicate |
 | A | Work with AI | ⌫ / Delete | Delete selection |
 | Right-click | Menu | ↵ | Fold / unfold selected section |
+| ⌘F | Find on this board | | |
 
 ## Tech
 
