@@ -76,7 +76,7 @@ function Shortcuts() {
       if (mod && key === 'y') return (e.preventDefault(), s.redo());
       if (mod && key === 'd') return (e.preventDefault(), s.duplicateSelected());
       if (mod && key === 'a') return (e.preventDefault(), s.setNodes((ns) => ns.map((n) => ({ ...n, selected: !n.hidden }))));
-      if (e.key === 'Delete' || e.key === 'Backspace') return s.deleteSelected();
+      if (e.key === 'Delete' || e.key === 'Backspace') return e.shiftKey ? s.deleteSectionsWithContents() : s.deleteSelected();
       if (mod || e.altKey || justCreated()) return;
       // Enter folds / unfolds the selected sections (a focused button handles Enter itself).
       if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {

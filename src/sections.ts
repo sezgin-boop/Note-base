@@ -42,6 +42,24 @@ export function sectionMembers(frame: CardNode, nodes: CardNode[]): string[] {
     .map((n) => n.id);
 }
 
+/** Every card inside the given sections, folded ones and sections within sections included. */
+export function sectionContents(nodes: CardNode[], frameIds: string[]): Set<string> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const found = new Set<string>();
+  const queue = [...frameIds];
+  for (let id = queue.pop(); id; id = queue.pop()) {
+    const f = byId.get(id);
+    if (!f || f.type !== 'frame') continue;
+    const inner = f.data.collapsed ? (f.data.members ?? []) : sectionMembers(f, nodes);
+    for (const m of inner)
+      if (byId.has(m) && !found.has(m) && !frameIds.includes(m)) {
+        found.add(m);
+        queue.push(m);
+      }
+  }
+  return found;
+}
+
 /**
  * A card is hidden exactly when a collapsed section that still exists holds it. Run after anything
  * that collapses, expands or deletes sections, so no card is ever left hidden without a way back.

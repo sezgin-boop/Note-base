@@ -21,6 +21,7 @@ import {
   Spline,
   Tag,
   Trash2,
+  PackageX,
   Unlink,
   type LucideIcon,
 } from 'lucide-react';
@@ -28,7 +29,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type Compo
 import { addTyped } from '../actions';
 import { addPaletteFor } from '../palette';
 import { DRAW_COLORS, DRAW_SIZES, paint, useDraw } from '../draw';
-import { SECTION_LOOKS } from '../sections';
+import { SECTION_LOOKS, sectionContents } from '../sections';
 import { copiedSkin, copySkin, SKIN_TYPES } from './StylePanel';
 import { cardLabel } from '../share/outline';
 import { BIG_BOARD, nodeIndex, useStore, type Background } from '../store';
@@ -138,6 +139,13 @@ export function ContextMenu() {
     const showAccent = selected.every((n) => ACCENT_TYPES.has(n.type as CardType));
     const frames = (selected.length ? selected : [node]).filter((n) => n.type === 'frame');
     const folded = frames.some((f) => f.data.collapsed);
+    const inside =
+      frames.length && !ro
+        ? sectionContents(
+            s.nodes,
+            frames.map((f) => f.id),
+          ).size
+        : 0;
     const drawings = (selected.length ? selected : [node]).every((n) => n.type === 'draw');
     const onlyFrames = frames.length > 0 && frames.length === (selected.length || 1);
     const scenes = (selected.length ? selected : [node]).filter((n) => n.type === 'scene');
@@ -375,11 +383,28 @@ export function ContextMenu() {
             <div className="menu-sep" />
             <Item
               icon={Trash2}
-              label={many ? `Delete ${selected.length} cards` : 'Delete'}
+              label={
+                frames.length
+                  ? many
+                    ? `Delete ${selected.length} cards, keep what's inside`
+                    : 'Delete section, keep cards'
+                  : many
+                    ? `Delete ${selected.length} cards`
+                    : 'Delete'
+              }
               kbd="⌫"
               danger
               onClick={s.deleteSelected}
             />
+            {inside > 0 && (
+              <Item
+                icon={PackageX}
+                label={`Delete ${frames.length > 1 ? 'sections' : 'section'} + ${inside} card${inside === 1 ? '' : 's'} inside`}
+                kbd="⇧⌫"
+                danger
+                onClick={s.deleteSectionsWithContents}
+              />
+            )}
           </>
         )}
       </>
@@ -521,6 +546,11 @@ function CardActions({ id }: { id: string }) {
       <button title="Delete" className="danger" onClick={s.deleteSelected}>
         <Trash2 size={14} />
       </button>
+      {s.nodes.find((n) => n.id === id)?.type === 'frame' && (
+        <button title="Delete section and everything inside (⇧⌫)" className="danger" onClick={s.deleteSectionsWithContents}>
+          <PackageX size={14} />
+        </button>
+      )}
       <button
         title="More"
         onClick={(e) => {

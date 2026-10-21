@@ -228,7 +228,7 @@ in Vercel and delete the old one.
 | ⌘Z / ⇧⌘Z | Undo / redo | ⌘D | Duplicate |
 | A | Work with AI | ⌫ / Delete | Delete selection |
 | Right-click | Menu | ↵ | Fold / unfold selected section |
-| ⌘F | Find on this board | | |
+| ⌘F | Find on this board | ⇧⌫ | Delete a section with everything inside |
 
 ## Tech
 

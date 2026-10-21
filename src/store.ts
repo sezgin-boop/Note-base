@@ -12,7 +12,7 @@ import { create } from 'zustand';
 import { AUTO_HEIGHT, makeCard } from './cards';
 import type { RemoteComment, SharedBundle } from './cloud';
 import * as db from './db';
-import { applyHidden, collapseFrame, expandFrame, sectionMembers, sectionsHolding } from './sections';
+import { applyHidden, collapseFrame, expandFrame, sectionContents, sectionMembers, sectionsHolding } from './sections';
 import { buildTemplate, type TemplateId } from './templates';
 import { toast } from './ui';
 import type { BoardContent, BoardMeta, CardData, CardEdge, CardNode, CardType, MediaRef } from './types';
@@ -110,6 +110,8 @@ interface State {
   selectOnly: (id: string) => void;
   duplicateSelected: () => void;
   deleteSelected: () => void;
+  /** Delete the selected sections together with every card inside them. */
+  deleteSectionsWithContents: () => void;
   patchSelected: (fn: (n: CardNode) => CardNode) => void;
 
   setLightbox: (l: State['lightbox']) => void;
@@ -441,6 +443,23 @@ export const useStore = create<State>((set, get) => {
         edges: get().edges.filter((e) => !e.selected && !ids.has(e.source) && !ids.has(e.target)),
         menu: null,
       });
+    },
+    deleteSectionsWithContents: () => {
+      if (!editable()) return;
+      const nodes = get().nodes;
+      const selected = nodes.filter((n) => n.selected);
+      const frames = selected.filter((n) => n.type === 'frame').map((n) => n.id);
+      if (!frames.length) return get().deleteSelected();
+      const inside = sectionContents(nodes, frames);
+      const ids = new Set([...selected.map((n) => n.id), ...inside]);
+      get().checkpoint();
+      set({
+        nodes: applyHidden(nodes.filter((n) => !ids.has(n.id))),
+        edges: get().edges.filter((e) => !e.selected && !ids.has(e.source) && !ids.has(e.target)),
+        menu: null,
+      });
+      const what = frames.length > 1 ? `${frames.length} sections` : 'Section';
+      toast(`${what} and ${inside.size} card${inside.size === 1 ? '' : 's'} inside deleted · Undo with ⌘Z`);
     },
     patchSelected: (fn) => {
       if (!editable()) return;
