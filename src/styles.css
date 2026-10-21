@@ -5273,3 +5273,41 @@ select.field-input {
     max-height: 38vh;
   }
 }
+
+/* ---------- Resizing with a finger ---------- */
+@media (pointer: coarse) {
+  /* Bigger handles that keep their size on screen when zoomed out, with a fingertip-sized hit area. */
+  .resize-handle {
+    width: 16px !important;
+    height: 16px !important;
+    border-width: 2.5px !important;
+    border-radius: 6px;
+    scale: clamp(1, calc(1 / var(--z, 1)), 4);
+  }
+  .resize-handle::before {
+    content: '';
+    position: absolute;
+    inset: -14px;
+    border-radius: 50%;
+  }
+  .width-resizer {
+    border-width: 14px !important;
+  }
+  .width-resizer::after {
+    width: 6px;
+    height: 36px;
+    scale: clamp(1, calc(1 / var(--z, 1)), 4);
+  }
+}
+.react-flow__node.sizing .card,
+.react-flow__node.sizing .heading-card {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+.react-flow__node.sizing .resize-handle {
+  background: var(--brand) !important;
+}
+body.touch-sizing {
+  -webkit-user-select: none;
+  user-select: none;
+}

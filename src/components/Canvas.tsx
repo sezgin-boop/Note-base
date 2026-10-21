@@ -6,12 +6,15 @@ import {
   MiniMap,
   ReactFlow,
   useReactFlow,
+  useStoreApi,
+  useUpdateNodeInternals,
   type NodeTypes,
   type OnNodeDrag,
   type XYPosition,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { cardTags } from '../tags';
+import { haptic } from '../ui';
 import { addTyped } from '../actions';
 import { importFromAi } from '../ai/apply';
 import { hasNotebaseBlock } from '../ai/importer';
@@ -114,9 +117,104 @@ function useTouchNavigation(
   onLiftDrop: (id: string, x: number, y: number) => void,
 ) {
   const rf = useReactFlow();
+  const updateInternals = useUpdateNodeInternals();
+  const flow = useStoreApi();
+  // The zoom as a CSS variable, so resize handles can stay finger-sized when zoomed out.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    let last = 0;
+    const put = (z: number) => z !== last && el.style.setProperty('--z', String((last = z)));
+    put(flow.getState().transform[2]);
+    return flow.subscribe((s) => put(s.transform[2]));
+  }, [ref, flow]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Resize handles under a finger: React Flow's own resizer is fiddly with touch (the board pans or
+    // the handle slips), so a finger on a handle resizes the card here, and nothing else moves.
+    let sizing: {
+      id: string;
+      kind: 'heading' | 'grow' | 'free';
+      x: number;
+      y: number;
+      zoom: number;
+      left: boolean;
+      right: boolean;
+      top: boolean;
+      bottom: boolean;
+      w0: number;
+      h0: number;
+      pos0: XYPosition;
+      minW: number;
+      minH: number;
+      font0: number;
+    } | null = null;
+    const startSizing = (ctl: HTMLElement, cardEl: HTMLElement, t: Touch) => {
+      const s = useStore.getState();
+      const node = s.nodes.find((n) => n.id === cardEl.dataset.id);
+      if (!node || node.type === 'draw' || s.readOnly) return false;
+      const box = cardEl.getBoundingClientRect();
+      const zoom = rf.getViewport().zoom;
+      const shell = cardEl.querySelector<HTMLElement>('.card');
+      const text = cardEl.querySelector<HTMLElement>('.heading-text');
+      const has = (c: string) => ctl.classList.contains(c);
+      sizing = {
+        id: node.id,
+        kind: node.type === 'heading' ? 'heading' : shell?.dataset.resize === 'grow' ? 'grow' : 'free',
+        x: t.clientX,
+        y: t.clientY,
+        zoom,
+        left: has('left'),
+        right: has('right'),
+        top: has('top'),
+        bottom: has('bottom'),
+        w0: box.width / zoom,
+        h0: box.height / zoom,
+        pos0: node.position,
+        minW: Number(shell?.dataset.minW) || (node.type === 'heading' ? 60 : 140),
+        minH: Number(shell?.dataset.minH) || (node.type === 'heading' ? 20 : 60),
+        font0: text ? parseFloat(getComputedStyle(text).fontSize) : 52,
+      };
+      s.checkpoint();
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      document.body.classList.add('touch-sizing');
+      cardEl.classList.add('sizing');
+      haptic();
+      return true;
+    };
+    const moveSizing = (t: Touch) => {
+      if (!sizing) return;
+      const z = sizing;
+      const dx = (t.clientX - z.x) / z.zoom;
+      const dy = (t.clientY - z.y) / z.zoom;
+      const w = Math.round(Math.max(z.minW, z.right ? z.w0 + dx : z.left ? z.w0 - dx : z.w0));
+      const h = Math.round(Math.max(z.minH, z.bottom ? z.h0 + dy : z.top ? z.h0 - dy : z.h0));
+      const position = { x: z.left ? z.pos0.x + z.w0 - w : z.pos0.x, y: z.top ? z.pos0.y + z.h0 - h : z.pos0.y };
+      const sized = z.left || z.right;
+      useStore.getState().setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== z.id) return n;
+          const next = { ...n, position, ...(sized ? { width: w } : {}) };
+          if (z.kind === 'heading') {
+            if (z.top || z.bottom)
+              next.data = { ...n.data, fontSize: Math.round(Math.min(260, Math.max(12, (z.font0 * h) / Math.max(z.h0, 1)))) };
+          } else if (z.kind === 'grow') {
+            if (z.top || z.bottom) next.data = { ...n.data, minH: h };
+          } else if (z.top || z.bottom) next.height = h;
+          return next;
+        }),
+      );
+    };
+    const endSizing = () => {
+      if (!sizing) return;
+      const id = sizing.id;
+      sizing = null;
+      document.body.classList.remove('touch-sizing');
+      el.querySelector(`.react-flow__node[data-id="${CSS.escape(id)}"]`)?.classList.remove('sizing');
+      // The card may have stopped at its text rather than at the finger: measure it again.
+      requestAnimationFrame(() => updateInternals(id));
+    };
     // Press and hold a card (anywhere on it, text too) to lift it and move it with one finger.
     let hold: {
       id: string;
@@ -168,7 +266,7 @@ function useTouchNavigation(
       const node = s.nodes.find((n) => n.id === hold!.id);
       if (!node) return cancelHold();
       hold.lifted = true;
-      navigator.vibrate?.(12);
+      haptic();
       (document.activeElement as HTMLElement | null)?.blur?.();
       s.checkpoint();
       // A section carries the cards inside it.
@@ -200,6 +298,19 @@ function useTouchNavigation(
     const onStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
       cancelHold();
+      if (sizing) {
+        // A second finger while resizing: stop resizing and let the fingers pinch.
+        endSizing();
+      } else if (e.touches.length === 1 && !active) {
+        const ctl = target.closest('.react-flow__resize-control') as HTMLElement | null;
+        const cardEl = ctl?.closest('.react-flow__node') as HTMLElement | null;
+        if (ctl && cardEl && startSizing(ctl, cardEl, e.touches[0])) {
+          e.preventDefault();
+          e.stopPropagation();
+          pan = null;
+          return;
+        }
+      }
       if (e.touches.length === 1 && !active) {
         const editing = target === document.activeElement && target.matches('input, textarea');
         const card = target.closest('.react-flow__node') as HTMLElement | null;
@@ -242,6 +353,12 @@ function useTouchNavigation(
       start = { ...measure(e.touches), vp: rf.getViewport() };
     };
     const onMove = (e: TouchEvent) => {
+      if (sizing && e.touches.length === 1) {
+        e.preventDefault();
+        e.stopPropagation();
+        moveSizing(e.touches[0]);
+        return;
+      }
       if (hold) {
         const t = e.touches[0];
         if (hold.lifted && e.touches.length === 1) {
@@ -276,6 +393,12 @@ function useTouchNavigation(
       rf.setViewport({ x: mid.x - fx * zoom, y: mid.y - fy * zoom, zoom });
     };
     const onEndTouch = (e: TouchEvent) => {
+      if (sizing) {
+        e.preventDefault(); // no tap → no edit mode after a resize
+        e.stopPropagation();
+        endSizing();
+        return;
+      }
       if (hold) {
         const lifted = hold.lifted ? hold : null;
         cancelHold();
@@ -332,7 +455,7 @@ function useTouchNavigation(
       el.removeEventListener('contextmenu', noMenu, true);
       cancelHold();
     };
-  }, [ref, rf, onEnd, onLiftDrop]);
+  }, [ref, rf, onEnd, onLiftDrop, updateInternals]);
 }
 
 /** The card being moved by press-and-hold (for its lifted / dropped look). */

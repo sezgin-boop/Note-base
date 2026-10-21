@@ -67,6 +67,9 @@ export function Shell({
     <div
       className={`card ${className} ${selected ? 'is-selected' : ''} ${color ? 'has-accent' : ''} ${look ? `skinned ink-${look.ink}` : ''}`}
       data-ts={textSize}
+      data-resize={resizable === 'grow' ? 'grow' : undefined}
+      data-min-w={resizable ? minWidth : undefined}
+      data-min-h={resizable ? minHeight : undefined}
       style={style}
     >
       {look && (
