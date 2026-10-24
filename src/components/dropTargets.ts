@@ -39,3 +39,14 @@ export const pointOf = (e: MouseEvent | TouchEvent | React.MouseEvent) => {
   const t = 'changedTouches' in e ? e.changedTouches[0] : null;
   return t ? { x: t.clientX, y: t.clientY } : { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
 };
+
+export const BOARD_DRAG = 'application/notebase-board';
+
+/** The board card under a screen point (not the one being dragged), which a board can be put into. */
+export function boardCardAt(x: number, y: number, skipId?: string): HTMLElement | null {
+  for (const el of document.elementsFromPoint(x, y)) {
+    const card = (el as HTMLElement).closest?.('.react-flow__node-board') as HTMLElement | null;
+    if (card && card.dataset.id !== skipId) return card;
+  }
+  return null;
+}

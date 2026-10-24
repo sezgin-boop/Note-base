@@ -7,6 +7,7 @@ import {
   Cloud,
   CloudOff,
   Download,
+  FolderInput,
   Plus,
   Search,
   Smartphone,
@@ -18,10 +19,11 @@ import { cloudConfigured } from '../cloud';
 import { useCloud } from '../sync';
 import { SyncLabel, useCanInstall } from './Dialogs';
 import { useState } from 'react';
+import { BOARD_DRAG } from './dropTargets';
 import { exportWorkspace, importWorkspace } from '../db';
 import { isPhone, useStore, type Panel } from '../store';
-import { TEMPLATES, type TemplateId } from '../templates';
 import type { BoardMeta } from '../types';
+import { TEMPLATES, type TemplateId } from '../templates';
 
 const EMOJIS = [
   '📁',
@@ -65,18 +67,103 @@ export function EmojiPicker({ onPick, onClose }: { onPick: (e: string) => void; 
   );
 }
 
+/** The board being dragged in the sidebar (dataTransfer can't be read while hovering). */
+let draggingBoard: string | null = null;
+
+/** Drag-and-drop props that put the dragged board inside `parentId` (null: the top level). */
+function useBoardDrop(parentId: string | null, onDrop?: () => void) {
+  const [over, setOver] = useState(false);
+  const fits = () => !!draggingBoard && draggingBoard !== parentId && useStore.getState().canMoveBoard(draggingBoard, parentId);
+  return {
+    over,
+    props: {
+      onDragOver: (e: React.DragEvent) => {
+        if (!e.dataTransfer.types.includes(BOARD_DRAG) || !fits()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        setOver(true);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      },
+      onDrop: (e: React.DragEvent) => {
+        setOver(false);
+        const id = e.dataTransfer.getData(BOARD_DRAG);
+        if (!id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        draggingBoard = null;
+        useStore.getState().moveBoard(id, parentId);
+        onDrop?.();
+      },
+    },
+  };
+}
+
+/** "Move to…": every board this one may go into, as an indented list, plus the top level. */
+function MovePicker({ board, onClose }: { board: BoardMeta; onClose: () => void }) {
+  const { boards, canMoveBoard, moveBoard } = useStore();
+  const rows: { b: BoardMeta; depth: number }[] = [];
+  const walk = (parent: string | null, depth: number) =>
+    boards
+      .filter((b) => (b.parentId ?? null) === parent)
+      .forEach((b) => {
+        rows.push({ b, depth });
+        walk(b.id, depth + 1);
+      });
+  walk(null, 0);
+  const pick = (parentId: string | null) => {
+    onClose();
+    moveBoard(board.id, parentId);
+  };
+  return (
+    <>
+      <div className="backdrop-clear" onClick={(e) => (e.stopPropagation(), onClose())} />
+      <div className="move-picker" onClick={(e) => e.stopPropagation()}>
+        <div className="menu-head">Move “{board.name}” into…</div>
+        {board.parentId && (
+          <button onClick={() => pick(null)}>
+            <span className="t-icon">⬆️</span> Top level
+          </button>
+        )}
+        {rows.map(({ b, depth }) => {
+          const ok = b.id !== board.parentId && canMoveBoard(board.id, b.id);
+          return (
+            <button key={b.id} disabled={!ok} style={{ paddingLeft: 10 + depth * 14 }} onClick={() => pick(b.id)}>
+              <span className="t-icon">{b.icon}</span> {b.name}
+              {b.id === board.parentId && <small> · here now</small>}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
   const { boards, currentId, openBoard, renameBoard, removeBoard, readOnly } = useStore();
   const children = boards.filter((b) => b.parentId === board.id);
   const [open, setOpen] = useState(depth === 0);
   const [editing, setEditing] = useState(false);
   const [picker, setPicker] = useState(false);
+  const [moving, setMoving] = useState(false);
+  // Dropping a board here opens this one, so the board just put inside shows.
+  const drop = useBoardDrop(board.id, () => setOpen(true));
   const active = board.id === currentId;
   return (
     <>
       <div
-        className={`tree-item ${active ? 'active' : ''}`}
+        className={`tree-item ${active ? 'active' : ''} ${drop.over ? 'drop-into' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
+        draggable={!readOnly && !editing}
+        onDragStart={(e) => {
+          draggingBoard = board.id;
+          e.dataTransfer.setData(BOARD_DRAG, board.id);
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        onDragEnd={() => (draggingBoard = null)}
+        {...(readOnly ? {} : drop.props)}
         onClick={() => {
           openBoard(board.id);
           if (isPhone()) useStore.getState().toggleSidebar();
@@ -113,6 +200,16 @@ function TreeItem({ board, depth }: { board: BoardMeta; depth: number }) {
         )}
         {!readOnly && (
           <button
+            className="tree-del tree-move"
+            title="Move into another board"
+            onClick={(e) => (e.stopPropagation(), setMoving(true))}
+          >
+            <FolderInput size={12} />
+          </button>
+        )}
+        {moving && <MovePicker board={board} onClose={() => setMoving(false)} />}
+        {!readOnly && (
+          <button
             className="tree-del"
             title="Delete board"
             onClick={(e) => {
@@ -141,6 +238,8 @@ export function Sidebar() {
   const user = useCloud((c) => c.user);
   const canInstall = useCanInstall();
   const roots = boards.filter((b) => !b.parentId);
+  // Dropped on the list itself (not on a board): back to the top level.
+  const rootDrop = useBoardDrop(null);
 
   const newBoard = async (template?: TemplateId, name = 'New board', icon = '📁') => {
     setMenu(false);
@@ -248,7 +347,7 @@ export function Sidebar() {
           </button>
         </div>
       )}
-      <div className="tree">
+      <div className={`tree ${rootDrop.over ? 'drop-root' : ''}`} {...(readOnly ? {} : rootDrop.props)}>
         {roots.map((b) => (
           <TreeItem key={b.id} board={b} depth={0} />
         ))}

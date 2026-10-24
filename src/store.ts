@@ -94,6 +94,13 @@ interface State {
   createBoard: (opts: { name: string; parentId: string | null; icon?: string; template?: TemplateId }) => Promise<string>;
   renameBoard: (id: string, patch: Partial<Pick<BoardMeta, 'name' | 'icon' | 'shareId' | 'shareComments'>>) => void;
   removeBoard: (id: string) => Promise<void>;
+  /** Whether `id` may be put inside `parentId` (not itself, nor one of its own sub-boards). */
+  canMoveBoard: (id: string, parentId: string | null) => boolean;
+  /**
+   * Put a board inside another one (or back at the top level with null). Its card moves along:
+   * it leaves the old parent board and shows up on the new one (at `at`, or beside the cards there).
+   */
+  moveBoard: (id: string, parentId: string | null, at?: XYPosition) => Promise<void>;
 
   onNodesChange: (changes: NodeChange<CardNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<CardEdge>[]) => void;
@@ -345,6 +352,65 @@ export const useStore = create<State>((set, get) => {
           await get().init();
         }
       }
+    },
+
+    canMoveBoard: (id, parentId) => {
+      const board = get().boards.find((b) => b.id === id);
+      if (!board || !editable()) return false;
+      if (parentId === null) return true;
+      return get().boards.some((b) => b.id === parentId) && !collectDescendants(id).includes(parentId);
+    },
+
+    moveBoard: async (id, parentId, at) => {
+      if (!get().canMoveBoard(id, parentId)) return;
+      const board = get().boards.find((b) => b.id === id)!;
+      const from = board.parentId;
+      const isCard = (n: CardNode) => n.type === 'board' && n.data.boardId === id;
+      // Edit a board's cards, whether it is the open one or stored.
+      const editBoard = async (boardId: string, fn: (c: BoardContent) => BoardContent) => {
+        if (boardId === get().currentId) {
+          get().checkpoint();
+          const next = fn({ nodes: get().nodes, edges: get().edges });
+          set({ nodes: next.nodes, edges: next.edges });
+          return;
+        }
+        await db.saveBoard(boardId, fn(await db.loadBoard(boardId)));
+        touchBoard(boardId);
+      };
+      if (from !== parentId) {
+        const boards = get().boards.map((b) => (b.id === id ? { ...b, parentId, updatedAt: Date.now() } : b));
+        set({ boards });
+        await db.saveIndex(boards);
+      }
+      if (from && from !== parentId)
+        await editBoard(from, (c) => {
+          const gone = new Set(c.nodes.filter(isCard).map((n) => n.id));
+          if (!gone.size) return c;
+          return {
+            ...c,
+            nodes: c.nodes.filter((n) => !gone.has(n.id)),
+            edges: c.edges.filter((e) => !gone.has(e.source) && !gone.has(e.target)),
+          };
+        });
+      if (parentId)
+        await editBoard(parentId, (c) => {
+          const existing = c.nodes.find(isCard);
+          if (existing) return at ? { ...c, nodes: c.nodes.map((n) => (n === existing ? { ...n, position: at } : n)) } : c;
+          // Beside what is already there: to the right of the cards, level with the top one.
+          const shown = c.nodes.filter((n) => !n.hidden);
+          const right = shown.length ? Math.max(...shown.map((n) => n.position.x + (n.width ?? n.measured?.width ?? 260))) : 0;
+          const top = shown.length ? Math.min(...shown.map((n) => n.position.y)) : 0;
+          const card = makeCard('board', at ?? { x: right + 60, y: top }, { boardId: id });
+          return {
+            ...c,
+            nodes: [
+              ...c.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+              { ...card, selected: parentId === get().currentId },
+            ],
+          };
+        });
+      const target = parentId ? get().boards.find((b) => b.id === parentId) : null;
+      toast(target ? `“${board.name}” is now inside “${target.icon} ${target.name}”` : `“${board.name}” moved to the top level`);
     },
 
     onNodesChange: (changes) => {

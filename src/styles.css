@@ -5311,3 +5311,75 @@ body.touch-sizing {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ---------- Putting boards inside boards ---------- */
+.tree-item[draggable='true'] {
+  -webkit-user-drag: element;
+}
+.tree-item.drop-into {
+  background: var(--brand-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 2px var(--brand);
+}
+.tree.drop-root {
+  border-radius: 12px;
+  outline: 2px dashed var(--brand);
+  outline-offset: -2px;
+}
+.tree-move {
+  margin-left: auto;
+}
+.tree-move + .tree-del {
+  margin-left: 0;
+}
+@media (pointer: coarse) {
+  .tree-item .tree-move {
+    opacity: 0.55;
+  }
+}
+.move-picker {
+  position: absolute;
+  z-index: 60;
+  top: 100%;
+  left: 8px;
+  right: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--popover);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-float);
+  cursor: default;
+  animation: pop 0.14s ease-out;
+}
+.move-picker button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+}
+.move-picker button:hover:not(:disabled) {
+  background: var(--brand-soft);
+}
+.move-picker button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.move-picker small {
+  color: var(--text-3);
+}
+.board-card.drop-hover::after {
+  content: 'Put inside';
+}
+.move-picker .t-icon {
+  width: auto;
+  height: auto;
+  background: none;
+  font-size: 15px;
+}

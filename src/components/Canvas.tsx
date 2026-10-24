@@ -14,7 +14,7 @@ import {
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { cardTags } from '../tags';
-import { haptic } from '../ui';
+import { haptic, toast } from '../ui';
 import { addTyped } from '../actions';
 import { importFromAi } from '../ai/apply';
 import { hasNotebaseBlock } from '../ai/importer';
@@ -25,7 +25,7 @@ import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
 import { BIG_BOARD, SELECTION, useStore } from '../store';
-import { dropTargetAt, highlightSlot, pointOf, settleSlot } from './dropTargets';
+import { BOARD_DRAG, boardCardAt, dropTargetAt, highlightSlot, pointOf, settleSlot } from './dropTargets';
 import { useDraw } from '../draw';
 import { DrawNode } from '../nodes/DrawNode';
 import { DrawOverlay, useDrawInput } from './DrawLayer';
@@ -103,6 +103,33 @@ export function useCreateFrom() {
     [addCard],
   );
   return { fromFiles, fromText };
+}
+
+/** A board card dragged onto another board card: its board goes inside that one. */
+async function dropBoardInto(cardId: string, targetCardId: string) {
+  const s = useStore.getState();
+  const card = s.nodes.find((n) => n.id === cardId);
+  const target = s.nodes.find((n) => n.id === targetCardId);
+  const id = card?.data.boardId;
+  const into = target?.data.boardId;
+  if (!id || !into || !s.canMoveBoard(id, into)) return false;
+  await s.moveBoard(id, into);
+  // The card may sit on a board that isn't the board's parent (a shortcut): it goes too.
+  s.setNodes((ns) => ns.filter((n) => n.id !== cardId));
+  s.setEdges((es) => es.filter((e) => e.source !== cardId && e.target !== cardId));
+  return true;
+}
+
+/** What lights up on a board card (the node itself carries React Flow's position transform). */
+const cardFace = (el: HTMLElement | null) => el?.querySelector<HTMLElement>('.board-card') ?? null;
+
+/** The board card a dragged board card would go into, if any (lit up while hovering). */
+function boardDropTarget(dragged: CardNode, x: number, y: number) {
+  const s = useStore.getState();
+  const el = boardCardAt(x, y, dragged.id);
+  const into = el ? s.nodes.find((n) => n.id === el.dataset.id)?.data.boardId : undefined;
+  const id = dragged.data.boardId;
+  return el && id && into && s.canMoveBoard(id, into) ? el : null;
 }
 
 /**
@@ -244,6 +271,7 @@ function useTouchNavigation(
       useStore.getState().setNodes((ns) => ns.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)));
       const node = useStore.getState().nodes.find((n) => n.id === hold!.id);
       if (node?.type === 'image') highlightSlot(dropTargetAt(hold.finger.x, hold.finger.y, node.id));
+      if (node?.type === 'board') highlightSlot(cardFace(boardDropTarget(node, hold.finger.x, hold.finger.y)));
     };
     // Near the screen edge, the board scrolls along so a card can travel far.
     const edgeScroll = () => {
@@ -606,6 +634,16 @@ export function Canvas() {
     highlightSlot(null);
     if (readOnly) return;
     const at = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    // A board dragged from the sidebar: it goes inside the open board (or the board card it lands on).
+    const boardId = e.dataTransfer.getData(BOARD_DRAG);
+    if (boardId) {
+      const s = useStore.getState();
+      const card = boardCardAt(e.clientX, e.clientY);
+      const into = card ? s.nodes.find((n) => n.id === card.dataset.id)?.data.boardId : undefined;
+      if (into && into !== boardId && s.canMoveBoard(boardId, into)) return s.moveBoard(boardId, into);
+      if (s.canMoveBoard(boardId, s.currentId)) return s.moveBoard(boardId, s.currentId, { x: at.x - 110, y: at.y - 60 });
+      return toast('A board can’t go inside itself or its own sub-boards');
+    }
     const type = e.dataTransfer.getData('application/notebase') as CardType;
     if (type) {
       addTyped(type, at);
@@ -688,6 +726,10 @@ export function Canvas() {
     dragged.length === 1 && dragged[0].type === 'image' && (dragged[0].data.mediaId || dragged[0].data.url) ? dragged[0] : null;
 
   const onNodeDrag: OnNodeDrag<CardNode> = (e, __, dragged) => {
+    if (dragged.length === 1 && dragged[0].type === 'board') {
+      const { x, y } = pointOf(e as unknown as MouseEvent);
+      highlightSlot(cardFace(boardDropTarget(dragged[0], x, y)));
+    }
     const img = imageBeingDropped(dragged);
     if (img) {
       const { x, y } = pointOf(e as unknown as MouseEvent);
@@ -721,6 +763,8 @@ export function Canvas() {
       const slot = node.type === 'image' && (node.data.mediaId || node.data.url) ? dropTargetAt(x, y, id) : null;
       if (slot && (slot.dataset.dropKind ?? 'image') === 'image')
         return fillSlot(slot.dataset.dropTarget!, galleryOf(node.data), id);
+      const into = node.type === 'board' ? boardDropTarget(node, x, y) : null;
+      if (into) return void dropBoardInto(id, into.dataset.id!);
       s.selectOnly(id);
     },
     // fillSlot only uses the store's setters, which never change
@@ -739,6 +783,10 @@ export function Canvas() {
         e.dataTransfer.dropEffect = 'copy';
         // Files or web pictures (not toolbar cards) light up the picture slot under the pointer.
         const types = [...e.dataTransfer.types];
+        if (types.includes(BOARD_DRAG)) {
+          e.dataTransfer.dropEffect = 'move';
+          return highlightSlot(cardFace(boardCardAt(e.clientX, e.clientY)));
+        }
         if (!readOnly && !types.includes('application/notebase') && (types.includes('Files') || types.includes('text/uri-list')))
           highlightSlot(dropTargetAt(e.clientX, e.clientY));
       }}
@@ -768,6 +816,12 @@ export function Canvas() {
           const img = imageBeingDropped(dragged);
           highlightSlot(null);
           document.querySelectorAll('.react-flow__node.dropping').forEach((el) => el.classList.remove('dropping'));
+          if (dragged.length === 1 && dragged[0].type === 'board') {
+            const { x, y } = pointOf(e as unknown as MouseEvent);
+            const into = boardDropTarget(dragged[0], x, y);
+            if (into) void dropBoardInto(dragged[0].id, into.dataset.id!);
+            return;
+          }
           if (!img) return;
           const { x, y } = pointOf(e as unknown as MouseEvent);
           const slot = dropTargetAt(x, y, img.id);
