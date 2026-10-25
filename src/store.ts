@@ -20,6 +20,16 @@ import type { BoardContent, BoardMeta, CardData, CardEdge, CardNode, CardType, M
 interface Snapshot {
   nodes: CardNode[];
   edges: CardEdge[];
+  /** This step also moved a board into another one (undoing it moves the board back). */
+  move?: BoardMove;
+}
+
+/** A board put inside another: its parent before / after, and the other boards whose cards changed. */
+interface BoardMove {
+  id: string;
+  before: string | null;
+  after: string | null;
+  stored: Record<string, { before: BoardContent; after: BoardContent }>;
 }
 
 export type Panel =
@@ -214,6 +224,31 @@ export const useStore = create<State>((set, get) => {
     return [id, ...kids.flatMap((k) => collectDescendants(k.id))];
   };
 
+  /** Give a board a new parent in the board list. */
+  const setParent = async (id: string, parentId: string | null) => {
+    const boards = get().boards.map((b) => (b.id === id ? { ...b, parentId, updatedAt: Date.now() } : b));
+    set({ boards });
+    await db.saveIndex(boards);
+  };
+
+  /** Put a moved board (and the other boards' cards) back as they were before or after the move. */
+  const replayMove = async (move: BoardMove, side: 'before' | 'after') => {
+    const parent = move[side];
+    if (get().boards.some((b) => b.id === move.id) && (parent === null || get().boards.some((b) => b.id === parent)))
+      await setParent(move.id, parent);
+    for (const [boardId, content] of Object.entries(move.stored)) {
+      if (!get().boards.some((b) => b.id === boardId)) continue;
+      await db.saveBoard(boardId, content[side]);
+      touchBoard(boardId);
+    }
+    const board = get().boards.find((b) => b.id === move.id);
+    const where = parent ? get().boards.find((b) => b.id === parent) : null;
+    if (board) {
+      const place = where ? `inside “${where.icon} ${where.name}”` : 'at the top level';
+      toast(side === 'before' ? `“${board.name}” is back ${place}` : `“${board.name}” is ${place} again`);
+    }
+  };
+
   return {
     ready: false,
     boards: [],
@@ -366,22 +401,22 @@ export const useStore = create<State>((set, get) => {
       const board = get().boards.find((b) => b.id === id)!;
       const from = board.parentId;
       const isCard = (n: CardNode) => n.type === 'board' && n.data.boardId === id;
+      // The whole move is one undo step on the open board, remembering the other boards it changed.
+      const step: Snapshot = { ...snapshot(), move: { id, before: from, after: parentId, stored: {} } };
       // Edit a board's cards, whether it is the open one or stored.
       const editBoard = async (boardId: string, fn: (c: BoardContent) => BoardContent) => {
         if (boardId === get().currentId) {
-          get().checkpoint();
           const next = fn({ nodes: get().nodes, edges: get().edges });
           set({ nodes: next.nodes, edges: next.edges });
           return;
         }
-        await db.saveBoard(boardId, fn(await db.loadBoard(boardId)));
+        const before = await db.loadBoard(boardId);
+        const after = fn(before);
+        step.move!.stored[boardId] = { before, after };
+        await db.saveBoard(boardId, after);
         touchBoard(boardId);
       };
-      if (from !== parentId) {
-        const boards = get().boards.map((b) => (b.id === id ? { ...b, parentId, updatedAt: Date.now() } : b));
-        set({ boards });
-        await db.saveIndex(boards);
-      }
+      if (from !== parentId) await setParent(id, parentId);
       if (from && from !== parentId)
         await editBoard(from, (c) => {
           const gone = new Set(c.nodes.filter(isCard).map((n) => n.id));
@@ -409,8 +444,11 @@ export const useStore = create<State>((set, get) => {
             ],
           };
         });
+      set({ past: [...get().past.slice(-60), step], future: [] });
       const target = parentId ? get().boards.find((b) => b.id === parentId) : null;
-      toast(target ? `“${board.name}” is now inside “${target.icon} ${target.name}”` : `“${board.name}” moved to the top level`);
+      toast(
+        `${target ? `“${board.name}” is now inside “${target.icon} ${target.name}”` : `“${board.name}” moved to the top level`} · Undo with ⌘Z`,
+      );
     },
 
     onNodesChange: (changes) => {
@@ -459,13 +497,17 @@ export const useStore = create<State>((set, get) => {
       const { past, future } = get();
       const prev = past.at(-1);
       if (!prev || !editable()) return;
-      set({ ...prev, past: past.slice(0, -1), future: [snapshot(), ...future] });
+      const { move, ...content } = prev;
+      set({ ...content, past: past.slice(0, -1), future: [{ ...snapshot(), move }, ...future] });
+      if (move) void replayMove(move, 'before');
     },
     redo: () => {
       const { past, future } = get();
       const next = future[0];
       if (!next || !editable()) return;
-      set({ ...next, past: [...past, snapshot()], future: future.slice(1) });
+      const { move, ...content } = next;
+      set({ ...content, past: [...past, { ...snapshot(), move }], future: future.slice(1) });
+      if (move) void replayMove(move, 'after');
     },
 
     selectOnly: (id) =>
