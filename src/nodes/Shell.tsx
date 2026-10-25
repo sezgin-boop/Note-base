@@ -275,29 +275,43 @@ const BAR_ROOM = 64;
  * top bar), else below it (above the bottom dock / the phone's keyboard), so it never covers the
  * text. A card taller than the screen keeps it pinned over the text field instead.
  */
-function useBarPlace(target: React.RefObject<HTMLTextAreaElement | null>) {
+function useBarPlace(cardId: string | undefined) {
   const [place, setPlace] = useState<'top' | 'bottom' | 'inline'>('top');
   // It starts at the card's left edge: on a narrow screen it wraps instead of running off the side.
   const [maxWidth, setMaxWidth] = useState<number>();
   useLayoutEffect(() => {
-    const card = target.current?.closest('.react-flow__node');
-    if (!card) return setPlace('inline');
-    const r = card.getBoundingClientRect();
-    setMaxWidth(Math.max(220, window.innerWidth - Math.max(r.left, 0) - 8));
-    const top = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
-    const bottom = window.visualViewport?.height ?? window.innerHeight;
-    const dock = document.querySelector('.toolbar')?.getBoundingClientRect().top ?? bottom;
-    if (r.top - BAR_ROOM >= top) setPlace('top');
-    else if (r.bottom + BAR_ROOM <= Math.min(bottom, dock)) setPlace('bottom');
-    else setPlace('inline');
-  }, [target]);
+    if (!cardId) return setPlace('inline');
+    let raf = 0;
+    let tries = 0;
+    const measure = () => {
+      const card = document.querySelector(`.react-flow__node[data-id="${CSS.escape(cardId)}"]`);
+      const r = card?.getBoundingClientRect();
+      // Not laid out yet (just opened, still measuring): look again next frame.
+      if (!r || !r.height) {
+        if (++tries < 30) raf = requestAnimationFrame(measure);
+        return;
+      }
+      setMaxWidth(Math.max(220, window.innerWidth - Math.max(r.left, 0) - 8));
+      const top = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
+      const screen = window.visualViewport?.height ?? window.innerHeight;
+      const dock = document.querySelector('.main > .toolbar')?.getBoundingClientRect();
+      const bottom = dock && dock.height && dock.top > screen / 2 ? Math.min(screen, dock.top) : screen;
+      if (r.top - BAR_ROOM >= top) setPlace('top');
+      else if (r.bottom + BAR_ROOM <= bottom) setPlace('bottom');
+      // Not much room either way: still outside the card if it fits on screen at all; only a card
+      // taller than the screen keeps the bar over its text.
+      else setPlace(r.top - BAR_ROOM >= 0 ? 'top' : r.bottom + BAR_ROOM <= screen ? 'bottom' : 'inline');
+    };
+    measure();
+    return () => cancelAnimationFrame(raf);
+  }, [cardId]);
   return { place, maxWidth };
 }
 
 /** Formatting bar shown beside a card while its text is being edited. */
 function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaElement | null>; onChange: (v: string) => void }) {
   const node = useCardNode();
-  const { place, maxWidth } = useBarPlace(target);
+  const { place, maxWidth } = useBarPlace(node?.id);
   // Stand in for the card's own toolbar (and move handle) while typing.
   useEffect(() => {
     if (!node) return;
