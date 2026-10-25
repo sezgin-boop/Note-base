@@ -23,8 +23,17 @@ export const hasBoard = async (id: string) => (await get(`board:${id}`)) !== und
 export const saveBoard = (id: string, content: BoardContent) => set(`board:${id}`, content);
 export const deleteBoard = async (id: string, silent = false) => {
   await del(`board:${id}`);
+  await del(`synced:${id}`);
   if (!silent) emit('delete', id);
 };
+
+/** The version of a board this device last agreed on with the cloud (the base for merging edits). */
+export interface SyncedBoard {
+  meta: BoardMeta;
+  content: BoardContent;
+}
+export const loadSynced = (id: string) => get<SyncedBoard>(`synced:${id}`);
+export const saveSynced = (id: string, value: SyncedBoard) => set(`synced:${id}`, value);
 
 // Files are stored as raw bytes, not as Blob objects: iOS Safari loses the contents of Blobs kept
 // in IndexedDB ("WebKitBlobResource error"), so a photo could neither show nor upload later.
@@ -216,7 +225,7 @@ export async function exportWorkspace(): Promise<Blob> {
   const data: Record<string, unknown> = {};
   for (const k of all) {
     const key = String(k);
-    if (key.startsWith('thumb')) continue; // rebuilt on demand
+    if (key.startsWith('thumb') || key.startsWith('synced:')) continue; // rebuilt on demand / per device
     const value = await get(key);
     const blob = key.startsWith('media:') ? fromStored(value) : undefined;
     data[key] = blob ? { __blob: await blobToDataUrl(blob) } : value;

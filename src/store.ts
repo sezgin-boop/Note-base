@@ -13,6 +13,7 @@ import { AUTO_HEIGHT, makeCard } from './cards';
 import type { RemoteComment, SharedBundle } from './cloud';
 import * as db from './db';
 import { applyHidden, collapseFrame, expandFrame, sectionContents, sectionMembers, sectionsHolding } from './sections';
+import { mergeBoards, sameContent } from './merge';
 import { buildTemplate, type TemplateId } from './templates';
 import { toast } from './ui';
 import type { BoardContent, BoardMeta, CardData, CardEdge, CardNode, CardType, MediaRef } from './types';
@@ -100,7 +101,11 @@ interface State {
   init: () => Promise<void>;
   initShared: (bundle: SharedBundle, shareId: string) => Promise<void>;
   openBoard: (id: string) => Promise<void>;
-  reloadBoard: (id: string) => Promise<void>;
+  /**
+   * Show the board's stored content again (after a sync changed it). `base` is what the board held
+   * when the sync started: edits made since then are merged in rather than lost.
+   */
+  reloadBoard: (id: string, base?: BoardContent) => Promise<void>;
   createBoard: (opts: { name: string; parentId: string | null; icon?: string; template?: TemplateId }) => Promise<string>;
   renameBoard: (id: string, patch: Partial<Pick<BoardMeta, 'name' | 'icon' | 'shareId' | 'shareComments'>>) => void;
   removeBoard: (id: string) => Promise<void>;
@@ -339,9 +344,13 @@ export const useStore = create<State>((set, get) => {
       });
     },
 
-    reloadBoard: async (id) => {
+    reloadBoard: async (id, base) => {
       if (id !== get().currentId) return;
-      const content = await db.loadBoard(id);
+      let content = await db.loadBoard(id);
+      const now = { nodes: cleanNodes(get().nodes), edges: cleanEdges(get().edges) };
+      // Typed or moved something while the sync was running: keep it on top of what arrived.
+      const editedMeanwhile = !!base && !sameContent(base, now);
+      if (editedMeanwhile) content = mergeBoards(base, now, content);
       markOpening(id, content.nodes.length);
       const selected = new Set(
         get()
@@ -352,7 +361,8 @@ export const useStore = create<State>((set, get) => {
         nodes: applyHidden(normalize(content.nodes)).map((n) => (selected.has(n.id) ? { ...n, selected: true } : n)),
         edges: content.edges,
       });
-      markSaved(id, get().nodes, get().edges);
+      // Merged-in edits still have to be saved (and synced); otherwise this is what's stored.
+      if (!editedMeanwhile) markSaved(id, get().nodes, get().edges);
     },
 
     createBoard: async ({ name, parentId, icon = '📁', template }) => {
@@ -761,6 +771,28 @@ const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 /** Whether the given board has edits that haven't been written to IndexedDB yet. */
 export const hasPendingSave = (id: string) => saveTimers.has(id);
 
+/** Write the open board to IndexedDB; a real content change marks it edited (so it syncs). */
+async function saveNow(id: string) {
+  clearTimeout(saveTimers.get(id));
+  saveTimers.delete(id);
+  const { nodes, edges, viewport, currentId: open } = useStore.getState();
+  if (open !== id) return;
+  const clean = { nodes: cleanNodes(nodes), edges: cleanEdges(edges) };
+  await db.saveBoard(id, { ...clean, viewport });
+  // Only real content changes (not selection or panning) count as an edit.
+  const json = contentKey(nodes, edges);
+  if (lastSaved.get(id) === json) return;
+  lastSaved.set(id, json);
+  const boards = useStore.getState().boards.map((b) => (b.id === id ? { ...b, updatedAt: Date.now() } : b));
+  useStore.setState({ boards });
+  await db.saveIndex(boards);
+}
+
+/** Save edits still waiting for their debounce now (before syncing, or when the app goes away). */
+export async function flushSave() {
+  await Promise.all([...saveTimers.keys()].map(saveNow));
+}
+
 useStore.subscribe((s, prev) => {
   if (s.currentId !== prev.currentId) return markSaved(s.currentId, s.nodes, s.edges);
   if (!s.ready || !s.currentId || s.readOnly) return;
@@ -769,20 +801,7 @@ useStore.subscribe((s, prev) => {
   clearTimeout(saveTimers.get(currentId));
   saveTimers.set(
     currentId,
-    setTimeout(async () => {
-      saveTimers.delete(currentId);
-      const { nodes, edges, viewport, currentId: open } = useStore.getState();
-      if (open !== currentId) return;
-      const clean = { nodes: cleanNodes(nodes), edges: cleanEdges(edges) };
-      await db.saveBoard(currentId, { ...clean, viewport });
-      // Only real content changes (not selection or panning) count as an edit.
-      const json = contentKey(nodes, edges);
-      if (lastSaved.get(currentId) === json) return;
-      lastSaved.set(currentId, json);
-      const boards = useStore.getState().boards.map((b) => (b.id === currentId ? { ...b, updatedAt: Date.now() } : b));
-      useStore.setState({ boards });
-      db.saveIndex(boards);
-    }, 400),
+    setTimeout(() => saveNow(currentId), 400),
   );
 });
 

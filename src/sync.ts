@@ -1,15 +1,19 @@
 import { create } from 'zustand';
 import { cloudConfigured, supabase, toRemoteComment, type RemoteComment } from './cloud';
 import * as db from './db';
-import { hasPendingSave, useStore } from './store';
+import { mergeBoards, mergeMeta } from './merge';
+import { flushSave, useStore } from './store';
 import type { BoardContent, BoardMeta } from './types';
 import { toast } from './ui';
 
 /*
  * Offline-first sync. IndexedDB stays the source the app reads from; this module mirrors
- * it to Supabase. Each board is one row and the newest `updated_at` wins.
+ * it to Supabase. Each board is one row. A board changed only here is uploaded, one changed only
+ * elsewhere is downloaded, and one changed on both sides is merged card by card (merge.ts) against
+ * the version both last agreed on (`synced:<id>` in IndexedDB), so neither device's edits are lost.
+ * Uploads only overwrite the row if nobody else wrote it in between; otherwise the board is merged again.
  *
- *   pushed[id]  updatedAt we last uploaded/downloaded — local edits newer than it get pushed;
+ *   pushed[id]  updatedAt we last uploaded/downloaded (the agreed version);
  *               a board we had synced that disappears remotely was deleted on another device.
  *   deleted     board ids deleted here but not yet deleted remotely (e.g. while offline).
  *   uploaded    media ids already in storage.
@@ -79,31 +83,47 @@ const toMeta = (r: Row): BoardMeta => ({
 let hasInboxColumn = true;
 const missingInbox = (e: { message?: string } | null) => !!e && /inbox/.test(e.message ?? '');
 
-async function pushBoards(metas: BoardMeta[]) {
-  if (!metas.length) return;
-  const rows = await Promise.all(
-    metas.map(async (m) => {
-      const { viewport, ...content } = await db.loadBoard(m.id);
-      return {
-        id: m.id,
-        name: m.name,
-        icon: m.icon,
-        parent_id: m.parentId,
-        updated_at: m.updatedAt,
-        share_id: m.shareId ?? null,
-        share_comments: m.shareComments ?? true,
-        ...(hasInboxColumn ? { inbox: !!m.inbox } : {}),
-        content,
-      };
-    }),
-  );
-  let { error } = await supabase!.from('boards').upsert(rows);
-  if (missingInbox(error) && hasInboxColumn) {
-    hasInboxColumn = false;
-    ({ error } = await supabase!.from('boards').upsert(rows.map(({ inbox, ...r }: any) => r)));
+/**
+ * Upload boards. `expected` holds the remote updated_at each one was based on: such a row is only
+ * overwritten if it still has that value; a board someone changed meanwhile is left for the next
+ * round (which merges it). Returns whether any board has to wait for that.
+ */
+async function pushBoards(metas: BoardMeta[], expected: Map<string, number> = new Map()): Promise<boolean> {
+  if (!metas.length) return false;
+  let raced = false;
+  for (const m of metas) {
+    const { viewport, ...content } = await db.loadBoard(m.id);
+    const row: Record<string, unknown> = {
+      id: m.id,
+      name: m.name,
+      icon: m.icon,
+      parent_id: m.parentId,
+      updated_at: m.updatedAt,
+      share_id: m.shareId ?? null,
+      share_comments: m.shareComments ?? true,
+      ...(hasInboxColumn ? { inbox: !!m.inbox } : {}),
+      content,
+    };
+    const was = expected.get(m.id);
+    const write = (r: Record<string, unknown>) =>
+      was === undefined
+        ? supabase!.from('boards').upsert(r).select('id')
+        : supabase!.from('boards').update(r).eq('id', m.id).eq('updated_at', was).select('id');
+    let { data, error } = await write(row);
+    if (missingInbox(error) && hasInboxColumn) {
+      hasInboxColumn = false;
+      delete row.inbox;
+      ({ data, error } = await write(row));
+    }
+    if (error) throw error;
+    if (was !== undefined && !data?.length) {
+      raced = true; // written by another device a moment ago: merge it next round
+      continue;
+    }
+    setPushed(m.id, m.updatedAt);
+    await db.saveSynced(m.id, { meta: m, content });
   }
-  if (error) throw error;
-  for (const m of metas) setPushed(m.id, m.updatedAt);
+  return raced;
 }
 
 async function flushDeletes() {
@@ -130,10 +150,12 @@ export function syncNow(): Promise<void> {
   }
   running = (async () => {
     try {
+      // Another device writing at the same moment can need one more round (bounded, just in case).
+      let rounds = 0;
       do {
         again = false;
         await syncOnce();
-      } while (again);
+      } while (again && ++rounds < 4);
       useCloud.setState({ status: 'synced', lastSync: Date.now(), error: null });
     } catch (e) {
       const offline = !navigator.onLine || (e as Error).message?.includes('fetch');
@@ -147,6 +169,11 @@ export function syncNow(): Promise<void> {
 
 async function syncOnce() {
   useCloud.setState({ status: 'syncing' });
+  // Edits still waiting to be saved go along in this round.
+  await flushSave();
+  const open = useStore.getState().currentId;
+  // The open board as this round starts: whatever is typed while it runs is merged back in later.
+  const openAtStart = open ? await db.loadBoard(open) : undefined;
   await flushDeletes();
 
   const columns = 'id,name,icon,parent_id,updated_at,share_id,share_comments';
@@ -162,6 +189,7 @@ async function syncOnce() {
 
   const toPush: BoardMeta[] = [];
   const toPull: string[] = [];
+  const toMerge: string[] = [];
   const goneRemotely: string[] = [];
 
   for (const l of local) {
@@ -169,29 +197,70 @@ async function syncOnce() {
     if (!r) {
       if (known[l.id] !== undefined) goneRemotely.push(l.id);
       else toPush.push(l);
-    } else if (Number(r.updated_at) > l.updatedAt) toPull.push(l.id);
-    else if (l.updatedAt > Number(r.updated_at) || known[l.id] === undefined) {
-      if (l.updatedAt > Number(r.updated_at)) toPush.push(l);
-      else setPushed(l.id, l.updatedAt);
+      continue;
     }
+    const at = Number(r.updated_at);
+    const base = known[l.id];
+    if (base === undefined) {
+      // Never synced on this device: same version → just remember it; otherwise merge both.
+      if (at === l.updatedAt) setPushed(l.id, at);
+      else toMerge.push(l.id);
+      continue;
+    }
+    const changedHere = l.updatedAt !== base;
+    const changedThere = at !== base;
+    if (changedHere && changedThere) toMerge.push(l.id);
+    // Changed elsewhere: take it — unless this device never kept the agreed version (synced before
+    // merging existed). Then combine instead, so cards that only this device has are not lost.
+    else if (changedThere) ((await db.loadSynced(l.id)) ? toPull : toMerge).push(l.id);
+    else if (changedHere) toPush.push(l);
   }
   const pending = new Set(ls.get<string[]>('deleted', []));
   for (const id of remote.keys()) if (!local.some((l) => l.id === id) && !pending.has(id)) toPull.push(id);
 
-  await pushBoards(toPush);
+  const expected = new Map(
+    [...toPush, ...toMerge.map((id) => ({ id }))].flatMap((b) => {
+      const r = remote.get(b.id);
+      return r ? [[b.id, Number(r.updated_at)] as const] : [];
+    }),
+  );
+  if (await pushBoards(toPush, expected)) again = true;
 
-  if (toPull.length) {
-    const { data: full, error: e2 } = await supabase!.from('boards').select('*').in('id', toPull);
+  const wanted = [...toPull, ...toMerge];
+  if (wanted.length) {
+    const { data: full, error: e2 } = await supabase!.from('boards').select('*').in('id', wanted);
     if (e2) throw e2;
-    for (const r of full as Row[]) await db.saveBoard(r.id, { ...(r.content ?? { nodes: [], edges: [] }) });
-    const pulled = new Map((full as Row[]).map((r) => [r.id, toMeta(r)]));
+    const pulled = new Map<string, BoardMeta>();
+    const merged: BoardMeta[] = [];
+    for (const r of full as Row[]) {
+      const theirs = { ...(r.content ?? { nodes: [], edges: [] }) };
+      const meta = toMeta(r);
+      if (!toMerge.includes(r.id)) {
+        // The open board may have been saved again since this round started: keep those edits.
+        const keep = r.id === open && openAtStart ? mergeBoards(openAtStart, await db.loadBoard(r.id), theirs) : theirs;
+        await db.saveBoard(r.id, keep);
+        await db.saveSynced(r.id, { meta, content: theirs });
+        pulled.set(r.id, meta);
+        continue;
+      }
+      // Changed on both sides: combine them, then upload the result.
+      const base = await db.loadSynced(r.id);
+      const mine = await db.loadBoard(r.id);
+      const mineMeta = useStore.getState().boards.find((b) => b.id === r.id) ?? meta;
+      const content = mergeBoards(base?.content, mine, theirs);
+      const both = mergeMeta(base?.meta, mineMeta, meta);
+      await db.saveBoard(r.id, content);
+      merged.push({ ...both, updatedAt: Math.max(Date.now(), meta.updatedAt + 1, mineMeta.updatedAt + 1) });
+    }
+    const changed = new Map([...pulled, ...merged.map((m) => [m.id, m] as const)]);
     mergeIndex((boards) => [
-      ...boards.map((b) => pulled.get(b.id) ?? b),
+      ...boards.map((b) => changed.get(b.id) ?? b),
       ...[...pulled.values()].filter((m) => !boards.some((b) => b.id === m.id)),
     ]);
     for (const m of pulled.values()) setPushed(m.id, m.updatedAt);
-    const open = useStore.getState().currentId;
-    if (pulled.has(open) && !hasPendingSave(open)) await useStore.getState().reloadBoard(open);
+    const mergedExpected = new Map(merged.map((m) => [m.id, Number(remote.get(m.id)!.updated_at)]));
+    if (await pushBoards(merged, mergedExpected)) again = true;
+    if (changed.has(open)) await useStore.getState().reloadBoard(open, openAtStart);
   }
 
   if (goneRemotely.length) {
@@ -425,6 +494,14 @@ export function startSync() {
 
   // Pick up changes from other devices.
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncNow());
+  // Leaving the app (switching apps, locking the phone): send the last edits right away, before
+  // the phone puts the page to sleep, instead of after the usual short delay.
+  const leaving = () => {
+    clearTimeout(pushTimer);
+    void flushSave().then(() => syncNow());
+  };
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && leaving());
+  window.addEventListener('pagehide', leaving);
   window.addEventListener('online', () => syncNow());
   setInterval(() => document.visibilityState === 'visible' && syncNow(), 30_000);
 }

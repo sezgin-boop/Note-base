@@ -238,4 +238,7 @@ Supabase (accounts, database, files), Vercel Edge Functions (`api/share.ts` the 
 the Claude connector, with shared code in `server/`), html-to-image (PNG export).
 
 Sync is offline-first: the app always reads from the device, and changes go to the cloud in the background. Each board is
-one row and the most recent save wins — if the same board is edited on two devices at the same moment, the later save wins.
+one row. A board changed on two devices before they synced is merged card by card (and field by field inside a card)
+against the version both last agreed on, so a note written on the phone and a card moved on the computer both survive;
+only when both changed the very same field does the device that syncs last win. Uploads never overwrite a row another
+device wrote in the meantime, and leaving the app (switching apps, locking the phone) sends pending edits right away.
