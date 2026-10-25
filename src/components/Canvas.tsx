@@ -25,6 +25,7 @@ import { VideoNode } from '../nodes/VideoNode';
 import { HeadingNode, NoteNode, TodoNode } from '../nodes/TextNodes';
 import { BoardNode, ColorNode, FrameNode, ProjectNode, SceneNode } from '../nodes/WorkNodes';
 import { BIG_BOARD, SELECTION, useStore } from '../store';
+import { SectionDrawLayer } from './SectionDraw';
 import { BOARD_DRAG, boardCardAt, dropTargetAt, highlightSlot, pointOf, settleSlot } from './dropTargets';
 import { useDraw } from '../draw';
 import { DrawNode } from '../nodes/DrawNode';
@@ -883,6 +884,7 @@ export function Canvas() {
           nodeBorderRadius={6}
         />
       </ReactFlow>
+      {!readOnly && <SectionDrawLayer />}
       <ContextMenu />
     </div>
   );

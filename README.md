@@ -221,7 +221,7 @@ in Vercel and delete the old one.
 | N | Note | S | Scene |
 | L | List | J | Job |
 | H | Heading | C | Color |
-| I | Image | F | Section |
+| I | Image | F | Section (drag to draw it) |
 | V | Video | B | Board |
 | K | Link | Q | Quick capture |
 | ⌘K | Search | ⌘J | Jobs |

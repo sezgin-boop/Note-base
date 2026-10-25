@@ -16,6 +16,7 @@ import { AccountDialog, InstallDialog, InstallHint, ShareDialog, Toasts } from '
 import { startSync } from './sync';
 import { Canvas } from './components/Canvas';
 import { BoardSearch } from './components/BoardSearch';
+import { useSectionDraw } from './components/SectionDraw';
 import { JobsPanel, Lightbox, SearchPalette, Topbar } from './components/Panels';
 import { Sidebar } from './components/Sidebar';
 import { TOOLS, Toolbar, useAddAtCenter } from './components/Toolbar';
@@ -89,7 +90,8 @@ function Shortcuts() {
       const tool = TOOLS.find((t) => t.key.toLowerCase() === key);
       if (tool) {
         e.preventDefault();
-        addAtCenter(tool.type);
+        if (tool.type === 'frame') useSectionDraw.getState().toggle();
+        else addAtCenter(tool.type);
       }
     };
     window.addEventListener('keydown', onKey);

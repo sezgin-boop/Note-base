@@ -5391,3 +5391,52 @@ body.touch-sizing {
   max-width: calc(100vw - 16px);
   flex-wrap: wrap;
 }
+
+/* ---------- Drawing a section ---------- */
+.section-draw {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  cursor: crosshair;
+  touch-action: none;
+}
+.section-draw-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--gap) + var(--safe-t) + 56px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--popover);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  box-shadow: var(--shadow-float);
+  cursor: default;
+  animation: pop 0.14s ease-out;
+}
+.section-draw-hint button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--highlight);
+  font-size: 12px;
+}
+.section-draw-box {
+  position: absolute;
+  border: 2px dashed var(--brand);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--brand) 9%, transparent);
+  pointer-events: none;
+}
+.section-draw-box span {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--brand);
+}

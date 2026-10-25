@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useDraw } from '../draw';
 import { addTyped } from '../actions';
+import { useSectionDraw } from './SectionDraw';
 import type { CardType } from '../types';
 
 export const TOOLS: { type: CardType; label: string; key: string; icon: React.ReactNode }[] = [
@@ -45,19 +46,21 @@ export function Toolbar() {
   const addAtCenter = useAddAtCenter();
   const drawTool = useDraw((s) => s.tool);
   const setTool = useDraw((s) => s.setTool);
+  const drawingSection = useSectionDraw((s) => s.on);
   return (
     <div className="toolbar">
       {TOOLS.map((t, i) => (
         <span key={t.type} className="tool-wrap">
           {(i === 3 || i === 6 || i === 9) && <span className="tool-sep" />}
           <button
-            className="tool"
+            className={`tool ${t.type === 'frame' && drawingSection ? 'on' : ''}`}
             draggable
             onDragStart={(e) => {
               e.dataTransfer.setData('application/notebase', t.type);
               e.dataTransfer.effectAllowed = 'copy';
             }}
-            onClick={() => addAtCenter(t.type)}
+            // A section is drawn on the board (drag its size); other cards appear in the middle.
+            onClick={() => (t.type === 'frame' ? useSectionDraw.getState().toggle() : addAtCenter(t.type))}
           >
             {t.icon}
             <span className="tip">
@@ -67,7 +70,10 @@ export function Toolbar() {
         </span>
       ))}
       <span className="tool-sep" />
-      <button className={`tool ${drawTool ? 'on' : ''}`} onClick={() => setTool(drawTool ? null : 'pen')}>
+      <button
+        className={`tool ${drawTool ? 'on' : ''}`}
+        onClick={() => (useSectionDraw.getState().toggle(false), setTool(drawTool ? null : 'pen'))}
+      >
         <PencilLine size={17} />
         <span className="tip">
           Draw <kbd>P</kbd>
