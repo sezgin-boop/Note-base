@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
+import { useEditingCard } from '../nodes/editing';
 import { addPaletteFor } from '../palette';
 import { DRAW_COLORS, DRAW_SIZES, paint, useDraw } from '../draw';
 import { SECTION_LOOKS, sectionContents } from '../sections';
@@ -601,6 +602,7 @@ export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentTy
     // opens (to find where arrows attach); drawing hundreds of full cards with their photos at once
     // is what made phones run out of memory and close the page.
     const size = useMemo(() => (liveNode ? liteSize(liveNode) : { w: 0, h: 0 }), [liveNode]);
+    const editingId = useEditingCard((s) => (s.id === props.id ? s.id : null));
     const offscreen = useFlowStore((s) => {
       if (!light) return false;
       // Until the board is zoomed to fit (no saved view yet) the view isn't final: wait.
@@ -613,11 +615,13 @@ export function withCardActions<P extends NodeProps<CardNode>>(Comp: ComponentTy
       return x + w * k < -m || y + h * k < -m || x > s.width + m || y > s.height + m;
     });
     if (light && offscreen) return <LiteCard node={liveNode!} bare />;
+    // While its text is edited, the card's formatting bar takes the toolbar's place.
+    const typing = editingId === props.id;
     if (light && far) return <LiteCard node={liveNode!} />;
     return (
       <>
-        {props.selected && <CardActions id={props.id} />}
-        {props.selected && <MoveGrip />}
+        {props.selected && !typing && <CardActions id={props.id} />}
+        {props.selected && !typing && <MoveGrip />}
         <CardContext.Provider value={props as unknown as CardNode}>
           <Comp {...props} />
         </CardContext.Provider>

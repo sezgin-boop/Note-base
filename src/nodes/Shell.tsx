@@ -1,12 +1,21 @@
-import { Handle, NodeResizeControl, NodeResizer, Position, ResizeControlVariant, useUpdateNodeInternals } from '@xyflow/react';
+import {
+  Handle,
+  NodeResizeControl,
+  NodeResizer,
+  NodeToolbar,
+  Position,
+  ResizeControlVariant,
+  useUpdateNodeInternals,
+} from '@xyflow/react';
 import type { ReactNode } from 'react';
 import { AArrowDown, AArrowUp, Heading, Highlighter, List } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePreviewUrl } from '../db';
 import { renderRich, TEXT_COLORS, toggleLinePrefix, wrapSelection } from '../richtext';
 import { skinLook } from '../skins';
 import { useStore } from '../store';
 import { stepTextSize, textScale } from '../types';
+import { useEditingCard } from './editing';
 import { CardMeta, useCardNode } from './meta';
 
 const HANDLES: [string, Position][] = [
@@ -258,8 +267,45 @@ const FORMATS: { label: ReactNode; title: string; apply: (el: HTMLTextAreaElemen
   { label: <List size={13} />, title: 'Bullet list', apply: (el) => toggleLinePrefix(el, '- ') },
 ];
 
-/** Formatting bar shown above a text field while it's being edited. */
+/** Room the bar needs beside a card: its height plus a margin. */
+const BAR_ROOM = 64;
+
+/**
+ * Where the formatting bar goes: outside the card, above it when there's room on screen (under the
+ * top bar), else below it (above the bottom dock / the phone's keyboard), so it never covers the
+ * text. A card taller than the screen keeps it pinned over the text field instead.
+ */
+function useBarPlace(target: React.RefObject<HTMLTextAreaElement | null>) {
+  const [place, setPlace] = useState<'top' | 'bottom' | 'inline'>('top');
+  // It starts at the card's left edge: on a narrow screen it wraps instead of running off the side.
+  const [maxWidth, setMaxWidth] = useState<number>();
+  useLayoutEffect(() => {
+    const card = target.current?.closest('.react-flow__node');
+    if (!card) return setPlace('inline');
+    const r = card.getBoundingClientRect();
+    setMaxWidth(Math.max(220, window.innerWidth - Math.max(r.left, 0) - 8));
+    const top = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
+    const bottom = window.visualViewport?.height ?? window.innerHeight;
+    const dock = document.querySelector('.toolbar')?.getBoundingClientRect().top ?? bottom;
+    if (r.top - BAR_ROOM >= top) setPlace('top');
+    else if (r.bottom + BAR_ROOM <= Math.min(bottom, dock)) setPlace('bottom');
+    else setPlace('inline');
+  }, [target]);
+  return { place, maxWidth };
+}
+
+/** Formatting bar shown beside a card while its text is being edited. */
 function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaElement | null>; onChange: (v: string) => void }) {
+  const node = useCardNode();
+  const { place, maxWidth } = useBarPlace(target);
+  // Stand in for the card's own toolbar (and move handle) while typing.
+  useEffect(() => {
+    if (!node) return;
+    useEditingCard.setState({ id: node.id });
+    return () => {
+      if (useEditingCard.getState().id === node.id) useEditingCard.setState({ id: null });
+    };
+  }, [node?.id]);
   const run = (fn: (el: HTMLTextAreaElement) => { next: string; start: number; end: number }) => {
     const el = target.current;
     if (!el) return;
@@ -276,8 +322,12 @@ function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaE
       {label}
     </button>
   );
-  return (
-    <div className="format-bar nodrag nopan" onMouseDown={(e) => e.preventDefault()}>
+  const bar = (
+    <div
+      className={`format-bar nodrag nopan ${place}`}
+      style={place === 'inline' ? undefined : { maxWidth }}
+      onMouseDown={(e) => e.preventDefault()}
+    >
       {FORMATS.map((f, i) => btn(String(i), f.title, f.label, f.apply))}
       <span className="fmt-sep" />
       {Object.entries(TEXT_COLORS).map(([name, c]) =>
@@ -287,6 +337,19 @@ function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaE
       )}
       <TextSizeButtons />
     </div>
+  );
+  if (!node || place === 'inline') return bar;
+  return (
+    // Outside the card, at a steady size whatever the zoom; on top of neighbouring cards.
+    <NodeToolbar
+      isVisible
+      position={place === 'top' ? Position.Top : Position.Bottom}
+      offset={10}
+      align="start"
+      style={{ zIndex: 2001 }}
+    >
+      {bar}
+    </NodeToolbar>
   );
 }
 

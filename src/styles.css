@@ -5383,3 +5383,11 @@ body.touch-sizing {
   background: none;
   font-size: 15px;
 }
+
+/* The formatting bar sits outside the card (above or below it) so it never covers the text. */
+.format-bar.top,
+.format-bar.bottom {
+  position: static;
+  max-width: calc(100vw - 16px);
+  flex-wrap: wrap;
+}
