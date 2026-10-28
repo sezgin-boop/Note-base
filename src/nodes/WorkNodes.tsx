@@ -1,4 +1,4 @@
-import type { NodeProps } from '@xyflow/react';
+import { NodeToolbar, Position, useStore as useFlowStore, type NodeProps } from '@xyflow/react';
 import {
   Briefcase,
   ChevronDown,
@@ -19,7 +19,8 @@ import { memberSummary } from '../sections';
 import { toast } from '../ui';
 import { takeFocus, useStore } from '../store';
 import type { CardNode, ProjectStatus } from '../types';
-import { SHOT_TYPES, STATUS_COLORS, STATUS_LABELS, titleStyle } from '../types';
+import { SHOT_TYPES, STATUS_COLORS, STATUS_LABELS, TITLE_SIZE, titleStyle } from '../types';
+import { SectionTitleStyle } from '../components/SectionTitleStyle';
 import { AccentPicker } from './TextNodes';
 import { addPhotos } from './MediaNodes';
 import { GalleryNav, useGallery } from './Gallery';
@@ -297,6 +298,11 @@ function OpenSection({ id, data, selected }: NodeProps<CardNode>) {
   const toggleSections = useStore((s) => s.toggleSections);
   const setMenu = useStore((s) => s.setMenu);
   const selectOnly = useStore((s) => s.selectOnly);
+  // Typing in the title shows its style panel (size, color, font) just above it.
+  const [styling, setStyling] = useState(false);
+  const zoom = useFlowStore((s) => (styling ? s.transform[2] : 1));
+  const headHeight = (data.titleSize ?? TITLE_SIZE) * 1.15 + 6;
+  const keepOpen = (next: EventTarget | null) => next instanceof Element && !!next.closest('.title-pop, .frame-title');
   return (
     <Shell
       icon={<LayoutDashboard size={12} />}
@@ -328,12 +334,21 @@ function OpenSection({ id, data, selected }: NodeProps<CardNode>) {
         <input
           className="nodrag frame-title"
           style={titleStyle(data)}
+          onFocus={() => setStyling(true)}
+          onBlur={(e) => !keepOpen(e.relatedTarget) && setStyling(false)}
           size={Math.max(6, (data.title ?? '').length + 1)}
           value={data.title ?? ''}
           placeholder="Section name"
           onChange={(e) => updateData(id, { title: e.target.value })}
         />
       </div>
+      {styling && (
+        <NodeToolbar isVisible position={Position.Top} align="start" offset={headHeight * zoom + 14} style={{ zIndex: 2002 }}>
+          <div className="title-pop" onBlur={(e) => !keepOpen(e.relatedTarget) && setStyling(false)}>
+            <SectionTitleStyle compact id={id} />
+          </div>
+        </NodeToolbar>
+      )}
     </Shell>
   );
 }

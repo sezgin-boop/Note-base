@@ -28,7 +28,7 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Cards: Note, List, Heading, Image, Video, Link, Scene (storyboard), Job (client, due date, fee, status), Color, Section,
   Board (boards inside boards)
 - Arrows between cards, with labels and arrowheads (right-click a connection). Arrows are magnetic: let go anywhere on a card, or just next to it, and the arrow attaches to the side facing where it came from
-- Section titles can be styled: size (S–XXL or step by step), any color, Serif / Sans / Mono, bold, italic — the “Aa” button on a selected section or its right-click menu
+- Section titles can be styled: size (S–XXL or step by step), any color, Serif / Sans / Mono, bold, italic — click the title to get its style panel (also the “T” button on a selected section, or its right-click menu)
 - A selected card shows a **Move** handle underneath: drag it to move the card straight away (on phones too)
 - On phones, press and hold any card (even over its text) for a moment to lift it, then drag it — it follows your finger,
   the board scrolls at the screen edges, sections carry their cards and photos drop into scene frames; a quick swipe

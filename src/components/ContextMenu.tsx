@@ -537,7 +537,15 @@ function CardActions({ id }: { id: string }) {
   return (
     // The toolbar takes its layer from the card (+1); sections sit at the back (-1), which would put
     // it under the canvas where it can't be clicked. Keep it on top of everything.
-    <NodeToolbar position={Position.Top} offset={10} className="card-toolbar" isVisible style={{ zIndex: 2000 }}>
+    // A section's title sits above it (and can be big): its toolbar goes underneath, at the right.
+    <NodeToolbar
+      position={isFrame ? Position.Bottom : Position.Top}
+      align={isFrame ? 'end' : 'center'}
+      offset={10}
+      className={`card-toolbar ${isFrame ? 'below' : ''}`}
+      isVisible
+      style={{ zIndex: 2000 }}
+    >
       <button title="Duplicate" onClick={s.duplicateSelected}>
         <Copy size={14} />
       </button>

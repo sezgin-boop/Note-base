@@ -5537,3 +5537,23 @@ body.touch-sizing {
   pointer-events: none;
   animation: fade 0.12s;
 }
+.title-pop {
+  width: 360px;
+  max-width: calc(100vw - 16px);
+  padding: 8px 2px 2px;
+  background: var(--popover);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-float);
+  animation: pop 0.12s ease-out;
+}
+.title-pop .title-style .seg button {
+  height: 26px;
+}
+/* Under a section, the "Aa" panel opens upwards, over the section itself. */
+.card-toolbar.below .toolbar-pop {
+  left: auto;
+  right: 0;
+  top: auto;
+  bottom: calc(100% + 6px);
+}
