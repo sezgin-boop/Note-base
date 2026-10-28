@@ -21,6 +21,7 @@ import {
   Spline,
   Tag,
   Trash2,
+  Type,
   PackageX,
   Unlink,
   type LucideIcon,
@@ -28,6 +29,7 @@ import {
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { addTyped } from '../actions';
 import { useEditingCard } from '../nodes/editing';
+import { SectionTitleStyle } from './SectionTitleStyle';
 import { addPaletteFor } from '../palette';
 import { DRAW_COLORS, DRAW_SIZES, paint, useDraw } from '../draw';
 import { SECTION_LOOKS, sectionContents } from '../sections';
@@ -321,6 +323,8 @@ export function ContextMenu() {
                 </button>
               )}
             </div>
+            <div className="menu-head">Section title</div>
+            <SectionTitleStyle />
             <div className="menu-row">
               <span>Style</span>
               <div className="seg menu-seg">
@@ -526,8 +530,10 @@ export function ContextMenu() {
 /** Small floating actions above a single selected card — the touch-friendly way to delete or copy. */
 function CardActions({ id }: { id: string }) {
   const s = useStore();
+  const [titleOpen, setTitleOpen] = useState(false);
   const count = s.nodes.filter((n) => n.selected).length;
   if (s.readOnly || count !== 1) return null;
+  const isFrame = s.nodes.find((n) => n.id === id)?.type === 'frame';
   return (
     // The toolbar takes its layer from the card (+1); sections sit at the back (-1), which would put
     // it under the canvas where it can't be clicked. Keep it on top of everything.
@@ -535,6 +541,16 @@ function CardActions({ id }: { id: string }) {
       <button title="Duplicate" onClick={s.duplicateSelected}>
         <Copy size={14} />
       </button>
+      {isFrame && (
+        <button title="Title style: size, color, font" className={titleOpen ? 'on' : ''} onClick={() => setTitleOpen(!titleOpen)}>
+          <Type size={14} />
+        </button>
+      )}
+      {isFrame && titleOpen && (
+        <div className="toolbar-pop">
+          <SectionTitleStyle compact />
+        </div>
+      )}
       {SKIN_TYPES.has(s.nodes.find((n) => n.id === id)?.type as CardType) && (
         <button
           title="Card style"

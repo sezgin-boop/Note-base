@@ -1,4 +1,5 @@
 import type { Edge, Node } from '@xyflow/react';
+import type { CSSProperties } from 'react';
 import type { Skin } from './skins';
 
 export type CardType =
@@ -117,6 +118,12 @@ export interface CardData extends Record<string, unknown> {
   openSize?: { width: number; height: number };
   /** Emoji shown before the section title. */
   icon?: string;
+  /** Section title look: size in px, color, typeface, bold / italic. */
+  titleSize?: number;
+  titleColor?: string;
+  titleFont?: TitleFont;
+  titleBold?: boolean;
+  titleItalic?: boolean;
   look?: 'tint' | 'solid' | 'outline' | 'dashed';
 }
 
@@ -183,6 +190,45 @@ export const stepTextSize = (size: TextSize | undefined, dir: 1 | -1) => {
   const i = TEXT_SIZES.findIndex(([v]) => v === size);
   return TEXT_SIZES[Math.max(0, Math.min(TEXT_SIZES.length - 1, (i < 0 ? 2 : i) + dir))][0];
 };
+
+export type TitleFont = 'serif' | 'sans' | 'mono';
+export const TITLE_FONTS: [TitleFont, string][] = [
+  ['serif', 'Serif'],
+  ['sans', 'Sans'],
+  ['mono', 'Mono'],
+];
+export const TITLE_SIZES: [string, number][] = [
+  ['S', 18],
+  ['M', 26],
+  ['L', 36],
+  ['XL', 52],
+  ['XXL', 72],
+];
+export const TITLE_SIZE = 26;
+export const TITLE_COLORS = [
+  '',
+  '#ffffff',
+  '#111114',
+  '#a78bfa',
+  '#38bdf8',
+  '#34d399',
+  '#facc15',
+  '#f59e0b',
+  '#f87171',
+  '#f472b6',
+];
+
+/** Inline style for a section title from its settings (nothing set: the theme's default look). */
+export function titleStyle(d: CardData, scale = 1): CSSProperties {
+  const font = { sans: "'Geist', system-ui, sans-serif", mono: 'var(--mono)', serif: undefined }[d.titleFont ?? 'serif'];
+  return {
+    ...(d.titleSize ? { fontSize: Math.round(d.titleSize * scale) } : {}),
+    ...(d.titleColor ? { color: d.titleColor } : {}),
+    ...(font ? { fontFamily: font, letterSpacing: '-0.01em' } : {}),
+    ...(d.titleBold ? { fontWeight: 700 } : {}),
+    ...(d.titleItalic ? { fontStyle: 'italic' } : {}),
+  };
+}
 
 export const ACCENTS = ['', '#a78bfa', '#38bdf8', '#34d399', '#f59e0b', '#f87171', '#f472b6'];
 

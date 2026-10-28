@@ -5440,3 +5440,100 @@ body.touch-sizing {
   font-variant-numeric: tabular-nums;
   color: var(--brand);
 }
+
+/* ---------- Section title style ---------- */
+.title-style {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 8px 6px;
+}
+.title-style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.title-style-label {
+  width: 38px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.title-style .seg {
+  flex: 1;
+  margin: 0 !important;
+}
+.title-style .seg button {
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+}
+.title-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.title-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.title-color.on {
+  box-shadow:
+    0 0 0 2px var(--popover),
+    0 0 0 4px var(--brand);
+}
+.title-color.auto {
+  background: linear-gradient(135deg, var(--text) 50%, var(--bg) 50%);
+}
+.title-color.custom {
+  background: conic-gradient(#f87171, #facc15, #34d399, #38bdf8, #a78bfa, #f472b6, #f87171);
+}
+.title-color.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+/* The "Aa" panel opens under the section's toolbar (over the section, not its title). */
+.toolbar-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  width: 360px;
+  max-width: calc(100vw - 16px);
+  padding: 8px 2px 2px;
+  background: var(--popover);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-float);
+  animation: pop 0.12s ease-out;
+}
+.card-toolbar .toolbar-pop button {
+  width: auto;
+  height: 26px;
+}
+.card-toolbar .toolbar-pop .title-color {
+  width: 20px;
+  height: 20px;
+}
+.card-toolbar button.on {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+/* An arrow being drawn snaps to the card under or near the pointer. */
+.react-flow__node.magnet-target::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 2px solid var(--brand);
+  border-radius: 20px;
+  box-shadow: 0 0 0 6px var(--brand-soft);
+  pointer-events: none;
+  animation: fade 0.12s;
+}

@@ -5,10 +5,12 @@ import {
   ConnectionMode,
   MiniMap,
   ReactFlow,
+  useConnection,
   useReactFlow,
   useStoreApi,
   useUpdateNodeInternals,
   type NodeTypes,
+  type FinalConnectionState,
   type OnNodeDrag,
   type XYPosition,
 } from '@xyflow/react';
@@ -104,6 +106,83 @@ export function useCreateFrom() {
     [addCard],
   );
   return { fromFiles, fromText };
+}
+
+type Flow = ReturnType<typeof useReactFlow<CardNode, CardEdge>>;
+
+/**
+ * The card an arrow being drawn should attach to at flow point `p` (magnetic): the card under it,
+ * or the nearest one within `reach`. Sections only count near their edge, so an arrow dropped on
+ * empty space inside a section doesn't grab the whole section. The arrow lands on the side facing
+ * the card it comes from.
+ */
+function magnetTarget(rf: Flow, p: XYPosition, fromId: string, reach: number) {
+  let best: { id: string; dist: number; area: number; frame: boolean } | null = null;
+  for (const n of rf.getNodes()) {
+    if (n.id === fromId || n.hidden) continue;
+    const inner = rf.getInternalNode(n.id);
+    const w = inner?.measured.width ?? n.width ?? 0;
+    const h = inner?.measured.height ?? n.height ?? 0;
+    if (!inner || !w || !h) continue;
+    const { x, y } = inner.internals.positionAbsolute;
+    const dx = Math.max(x - p.x, 0, p.x - (x + w));
+    const dy = Math.max(y - p.y, 0, p.y - (y + h));
+    const frame = n.type === 'frame';
+    // Inside a section: how far from its border.
+    const dist = frame && !dx && !dy ? Math.min(p.x - x, x + w - p.x, p.y - y, y + h - p.y) : Math.hypot(dx, dy);
+    if (dist > reach) continue;
+    const cand = { id: n.id, dist, area: w * h, frame };
+    const better =
+      !best ||
+      (best.frame && !frame) ||
+      (best.frame === frame && (dist < best.dist || (dist === best.dist && cand.area < best.area)));
+    if (better) best = cand;
+  }
+  if (!best) return null;
+  const to = rf.getInternalNode(best.id)!;
+  const from = rf.getInternalNode(fromId);
+  const tw = to.measured.width ?? 1;
+  const th = to.measured.height ?? 1;
+  const tc = { x: to.internals.positionAbsolute.x + tw / 2, y: to.internals.positionAbsolute.y + th / 2 };
+  const fc = from
+    ? {
+        x: from.internals.positionAbsolute.x + (from.measured.width ?? 0) / 2,
+        y: from.internals.positionAbsolute.y + (from.measured.height ?? 0) / 2,
+      }
+    : p;
+  const vx = (fc.x - tc.x) / tw;
+  const vy = (fc.y - tc.y) / th;
+  const handle = Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'r' : 'l') : vy > 0 ? 'b' : 't';
+  return { id: best.id, handle };
+}
+
+/** How far (on screen) an arrow reaches for a card to snap to. */
+const MAGNET_PX = 48;
+
+/** While an arrow is drawn, light up the card it would attach to when let go. */
+function ConnectMagnet() {
+  const c = useConnection();
+  const rf = useReactFlow<CardNode, CardEdge>();
+  const lit = useRef<Element | null>(null);
+  const px = c.inProgress ? c.pointer.x : null;
+  const py = c.inProgress ? c.pointer.y : null;
+  const fromId = c.inProgress ? c.fromNode.id : null;
+  const snapped = c.inProgress && !!c.toHandle;
+  useEffect(() => {
+    let el: Element | null = null;
+    if (px !== null && py !== null && fromId && !snapped) {
+      const { x, y, zoom } = rf.getViewport();
+      const t = magnetTarget(rf, { x: (px - x) / zoom, y: (py - y) / zoom }, fromId, MAGNET_PX / zoom);
+      el = t ? document.querySelector(`.react-flow__node[data-id="${CSS.escape(t.id)}"]`) : null;
+    }
+    if (lit.current !== el) {
+      lit.current?.classList.remove('magnet-target');
+      el?.classList.add('magnet-target');
+      lit.current = el;
+    }
+  }, [px, py, fromId, snapped, rf]);
+  useEffect(() => () => lit.current?.classList.remove('magnet-target'), []);
+  return null;
 }
 
 /** A board card dragged onto another board card: its board goes inside that one. */
@@ -810,6 +889,22 @@ export function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        connectionRadius={36}
+        // Let go over a card (or close to it) and the arrow attaches itself, no need to hit the dot.
+        onConnectEnd={useStable((e: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+          document.querySelectorAll('.magnet-target').forEach((el) => el.classList.remove('magnet-target'));
+          if (state.isValid || !state.fromNode || !state.fromHandle) return;
+          const { x, y } = pointOf(e);
+          const zoom = rf.getViewport().zoom;
+          const t = magnetTarget(rf as unknown as Flow, rf.screenToFlowPosition({ x, y }), state.fromNode.id, MAGNET_PX / zoom);
+          if (!t) return;
+          const source = state.fromNode.id;
+          const exists = useStore
+            .getState()
+            .edges.some((ed) => (ed.source === source && ed.target === t.id) || (ed.source === t.id && ed.target === source));
+          if (exists) return;
+          onConnect({ source, sourceHandle: state.fromHandle.id ?? null, target: t.id, targetHandle: t.handle });
+        })}
         onNodeDragStart={useStable(onNodeDragStart)}
         onNodeDrag={useStable(onNodeDrag)}
         onNodeDragStop={useStable<OnNodeDrag<CardNode>>((e, _, dragged) => {
@@ -883,6 +978,7 @@ export function Canvas() {
           nodeColor={minimapColor}
           nodeBorderRadius={6}
         />
+        <ConnectMagnet />
       </ReactFlow>
       {!readOnly && <SectionDrawLayer />}
       <ContextMenu />

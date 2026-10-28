@@ -19,7 +19,7 @@ import { memberSummary } from '../sections';
 import { toast } from '../ui';
 import { takeFocus, useStore } from '../store';
 import type { CardNode, ProjectStatus } from '../types';
-import { SHOT_TYPES, STATUS_COLORS, STATUS_LABELS } from '../types';
+import { SHOT_TYPES, STATUS_COLORS, STATUS_LABELS, titleStyle } from '../types';
 import { AccentPicker } from './TextNodes';
 import { addPhotos } from './MediaNodes';
 import { GalleryNav, useGallery } from './Gallery';
@@ -327,6 +327,7 @@ function OpenSection({ id, data, selected }: NodeProps<CardNode>) {
         )}
         <input
           className="nodrag frame-title"
+          style={titleStyle(data)}
           size={Math.max(6, (data.title ?? '').length + 1)}
           value={data.title ?? ''}
           placeholder="Section name"
@@ -362,7 +363,9 @@ function CollapsedSection({ id, data, selected }: NodeProps<CardNode>) {
       </button>
       <span className="section-icon">{data.icon ?? <LayoutDashboard size={16} />}</span>
       <div className="section-text">
-        <div className="section-title">{data.title || 'Section'}</div>
+        <div className="section-title" style={{ ...titleStyle(data, 0.6), fontSize: undefined }}>
+          {data.title || 'Section'}
+        </div>
         <div className="section-sub">
           {cards.length} card{cards.length === 1 ? '' : 's'}
           {cards.length > 0 && ` · ${memberSummary(cards)}`}
