@@ -11,7 +11,8 @@ import type { ReactNode } from 'react';
 import { AArrowDown, AArrowUp, Heading, Highlighter, List } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePreviewUrl } from '../db';
-import { renderRich, TEXT_COLORS, toggleLinePrefix, wrapSelection } from '../richtext';
+import { editorToRich, renderRich, richToEditorHtml, TEXT_COLORS } from '../richtext';
+import { applyColor, applyEdit, endListOnEnter, placeCaret, tidyNewLine, type EditKind } from './richEdit';
 import { skinLook } from '../skins';
 import { useStore } from '../store';
 import { stepTextSize, textScale } from '../types';
@@ -258,13 +259,13 @@ export function AutoText({
   );
 }
 
-const FORMATS: { label: ReactNode; title: string; apply: (el: HTMLTextAreaElement) => ReturnType<typeof wrapSelection> }[] = [
-  { label: <b>B</b>, title: 'Bold (⌘B)', apply: (el) => wrapSelection(el, '**') },
-  { label: <i>I</i>, title: 'Italic (⌘I)', apply: (el) => wrapSelection(el, '*') },
-  { label: <s>S</s>, title: 'Strikethrough', apply: (el) => wrapSelection(el, '~~') },
-  { label: <Highlighter size={13} />, title: 'Highlight (⌘⇧H)', apply: (el) => wrapSelection(el, '==') },
-  { label: <Heading size={13} />, title: 'Big line', apply: (el) => toggleLinePrefix(el, '# ') },
-  { label: <List size={13} />, title: 'Bullet list', apply: (el) => toggleLinePrefix(el, '- ') },
+const FORMATS: { label: ReactNode; title: string; kind: EditKind }[] = [
+  { label: <b>B</b>, title: 'Bold (⌘B)', kind: 'bold' },
+  { label: <i>I</i>, title: 'Italic (⌘I)', kind: 'italic' },
+  { label: <s>S</s>, title: 'Strikethrough', kind: 'strike' },
+  { label: <Highlighter size={13} />, title: 'Highlight (⌘⇧H)', kind: 'mark' },
+  { label: <Heading size={13} />, title: 'Big line', kind: 'h1' },
+  { label: <List size={13} />, title: 'Bullet list', kind: 'li' },
 ];
 
 /** Room the bar needs beside a card: its height plus a margin. */
@@ -309,7 +310,7 @@ function useBarPlace(cardId: string | undefined) {
 }
 
 /** Formatting bar shown beside a card while its text is being edited. */
-function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaElement | null>; onChange: (v: string) => void }) {
+function FormatBar({ target, onChange }: { target: React.RefObject<HTMLDivElement | null>; onChange: (v: string) => void }) {
   const node = useCardNode();
   const { place, maxWidth } = useBarPlace(node?.id);
   // Stand in for the card's own toolbar (and move handle) while typing.
@@ -320,19 +321,16 @@ function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaE
       if (useEditingCard.getState().id === node.id) useEditingCard.setState({ id: null });
     };
   }, [node?.id]);
-  const run = (fn: (el: HTMLTextAreaElement) => { next: string; start: number; end: number }) => {
+  // Format the text in place, then store it (the editor keeps its focus and selection).
+  const run = (fn: (el: HTMLDivElement) => void) => {
     const el = target.current;
     if (!el) return;
-    const { next, start, end } = fn(el);
-    onChange(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start, end);
-    });
+    fn(el);
+    onChange(editorToRich(el));
   };
   // mousedown + preventDefault keeps the text selection and focus in the field.
-  const btn = (key: string, title: string, label: ReactNode, fn: Parameters<typeof run>[0], extra?: React.CSSProperties) => (
-    <button key={key} className="fmt-btn" title={title} style={extra} onMouseDown={(e) => (e.preventDefault(), run(fn))}>
+  const btn = (key: string, title: string, label: ReactNode, fn: (el: HTMLDivElement) => void) => (
+    <button key={key} className="fmt-btn" title={title} onMouseDown={(e) => (e.preventDefault(), run(fn))}>
       {label}
     </button>
   );
@@ -342,11 +340,11 @@ function FormatBar({ target, onChange }: { target: React.RefObject<HTMLTextAreaE
       style={place === 'inline' ? undefined : { maxWidth }}
       onMouseDown={(e) => e.preventDefault()}
     >
-      {FORMATS.map((f, i) => btn(String(i), f.title, f.label, f.apply))}
+      {FORMATS.map((f) => btn(f.kind, f.title, f.label, (el) => applyEdit(el, f.kind)))}
       <span className="fmt-sep" />
       {Object.entries(TEXT_COLORS).map(([name, c]) =>
         btn(name, `${name[0].toUpperCase()}${name.slice(1)} text`, <span className="fmt-dot" style={{ background: c }} />, (el) =>
-          wrapSelection(el, `:${name}[`, ']'),
+          applyColor(el, name),
         ),
       )}
       <TextSizeButtons />
@@ -398,39 +396,9 @@ function TextSizeButtons() {
 }
 
 /**
- * The position in the plain text (with its **, ==, # … marks) of the point clicked in its formatted
- * view. The shown text is the plain text minus the marks, so its characters are found in order.
- */
-function caretFromClick(view: HTMLElement, raw: string, x: number, y: number): number | undefined {
-  const doc = document as Document & {
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-  };
-  let node: Node | null = null;
-  let offset = 0;
-  if (doc.caretPositionFromPoint) {
-    const p = doc.caretPositionFromPoint(x, y);
-    if (p) [node, offset] = [p.offsetNode, p.offset];
-  } else if (document.caretRangeFromPoint) {
-    const r = document.caretRangeFromPoint(x, y);
-    if (r) [node, offset] = [r.startContainer, r.startOffset];
-  }
-  if (!node || !view.contains(node)) return undefined;
-  const range = document.createRange();
-  range.setStart(view, 0);
-  range.setEnd(node, offset);
-  const before = range.toString();
-  const shown = view.textContent ?? '';
-  let v = 0;
-  for (let i = 0; i < raw.length; i++) {
-    if (v >= before.length) return i;
-    if (raw[i] === shown[v]) v++;
-  }
-  return raw.length;
-}
-
-/**
  * Text with light formatting (bold, italic, highlight, colors, big lines, bullets). Shows the
- * formatted result; click to edit the plain text with a formatting bar.
+ * formatted result; click to edit it in place, still formatted (no ** or == marks), with a
+ * formatting bar. What's stored is the plain-text form (see richtext.ts).
  */
 export function RichText({
   value,
@@ -447,8 +415,8 @@ export function RichText({
 }) {
   const readOnly = useStore((s) => s.readOnly);
   const [editing, setEditing] = useState(!!autoFocus);
-  const [caret, setCaret] = useState<number | undefined>();
-  const ref = useRef<HTMLTextAreaElement>(null);
+  // Where the formatted text was clicked: the caret goes there.
+  const [clickAt, setClickAt] = useState<{ x: number; y: number }>();
   const html = useMemo(() => (value ? renderRich(value) : ''), [value]);
 
   if (!editing || readOnly) {
@@ -458,47 +426,111 @@ export function RichText({
         data-placeholder={placeholder}
         onClick={(e) => {
           if (readOnly || (e.target as HTMLElement).closest('a')) return;
-          // Start typing where the text was clicked, not at the end.
-          setCaret(caretFromClick(e.currentTarget, value, e.clientX, e.clientY));
+          setClickAt({ x: e.clientX, y: e.clientY });
           setEditing(true);
         }}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
   }
+  return (
+    <RichEditor
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={className}
+      clickAt={clickAt}
+      onDone={() => setEditing(false)}
+    />
+  );
+}
 
-  const shortcut = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const mod = e.metaKey || e.ctrlKey;
+/** The editable, formatted text. It is filled once and then left to the browser while typing. */
+function RichEditor({
+  value,
+  onChange,
+  placeholder,
+  className,
+  clickAt,
+  onDone,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className: string;
+  clickAt?: { x: number; y: number };
+  onDone: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [empty, setEmpty] = useState(!value);
+  const last = useRef(value);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.innerHTML = richToEditorHtml(value);
+    document.execCommand('defaultParagraphSeparator', false, 'div');
+    // React Flow keeps a new card hidden until it's measured, and hidden elements can't take focus.
+    let tries = 0;
+    let raf = 0;
+    const focus = () => {
+      el.focus({ preventScroll: true });
+      if (document.activeElement === el) return placeCaret(el, clickAt);
+      if (++tries < 20) raf = requestAnimationFrame(focus);
+    };
+    focus();
+    return () => cancelAnimationFrame(raf);
+    // Filled once: afterwards the editor is the source of the text until editing ends.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const commit = () => {
+    const el = ref.current;
+    if (!el) return;
+    const text = editorToRich(el);
+    setEmpty(!text.trim());
+    if (text === last.current) return;
+    last.current = text;
+    onChange(text);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    const fn = !mod
-      ? null
-      : e.key.toLowerCase() === 'b'
-        ? () => wrapSelection(el, '**')
-        : e.key.toLowerCase() === 'i'
-          ? () => wrapSelection(el, '*')
-          : e.shiftKey && e.key.toLowerCase() === 'h'
-            ? () => wrapSelection(el, '==')
-            : null;
-    if (!fn) return;
-    e.preventDefault();
-    const { next, start, end } = fn();
-    onChange(next);
-    requestAnimationFrame(() => el.setSelectionRange(start, end));
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      applyEdit(el, 'mark');
+      return commit();
+    }
+    if (mod && e.key.toLowerCase() === 'b') return (e.preventDefault(), applyEdit(el, 'bold'), commit());
+    if (mod && e.key.toLowerCase() === 'i') return (e.preventDefault(), applyEdit(el, 'italic'), commit());
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (endListOnEnter(el)) return (e.preventDefault(), commit());
+      setTimeout(() => (tidyNewLine(el), commit()), 0);
+    }
   };
 
   return (
     <div className="rich-edit">
-      <FormatBar target={ref} onChange={onChange} />
-      <AutoText
-        textareaRef={ref}
-        className={className}
-        value={value}
-        placeholder={placeholder}
-        autoFocus
-        selectAll={false}
-        caret={caret}
-        onChange={onChange}
+      <FormatBar target={ref} onChange={(t) => ((last.current = t), setEmpty(!t.trim()), onChange(t))} />
+      <div
+        ref={ref}
+        className={`rich-view rich-editor nodrag ${className} ${empty ? 'empty' : ''}`}
+        data-placeholder={placeholder}
+        contentEditable
+        suppressContentEditableWarning
+        spellCheck
+        onInput={commit}
+        onKeyDown={onKeyDown}
+        // Pasted text comes in plain (no outside styles); it can still be formatted afterwards.
+        onPaste={(e) => {
+          const text = e.clipboardData.getData('text/plain');
+          if (!text) return;
+          e.preventDefault();
+          document.execCommand('insertText', false, text);
+        }}
         onBlur={() => {
+          commit();
           // Switching to another app (a dictation tool like Wispr Flow, the keyboard's voice input…)
           // also blurs the field. Stay in editing mode and take the focus back on return, so the
           // dictated text lands here; leave only when something else on the page is picked.
@@ -508,7 +540,7 @@ export function RichText({
                 const el = ref.current;
                 const now = document.activeElement;
                 if (!el) return;
-                if (now && now !== document.body && now !== el) setEditing(false);
+                if (now && now !== document.body && now !== el) onDone();
                 else el.focus({ preventScroll: true });
               }, 60);
             window.addEventListener('focus', back, { once: true });
@@ -516,14 +548,13 @@ export function RichText({
             const outside = (e: PointerEvent) => {
               if (ref.current && ref.current.contains(e.target as Node)) return;
               window.removeEventListener('pointerdown', outside, true);
-              if (document.activeElement !== ref.current) setEditing(false);
+              if (document.activeElement !== ref.current) onDone();
             };
             window.addEventListener('pointerdown', outside, true);
             return;
           }
-          setEditing(false);
+          onDone();
         }}
-        onKeyDown={shortcut}
       />
     </div>
   );

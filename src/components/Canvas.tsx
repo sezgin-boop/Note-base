@@ -420,7 +420,9 @@ function useTouchNavigation(
         }
       }
       if (e.touches.length === 1 && !active) {
-        const editing = target === document.activeElement && target.matches('input, textarea');
+        const editing =
+          (target === document.activeElement && target.matches('input, textarea')) ||
+          !!target.closest('[contenteditable="true"]');
         const card = target.closest('.react-flow__node') as HTMLElement | null;
         const st = useStore.getState();
         // The move handle under a selected card lifts it at once, no holding needed.

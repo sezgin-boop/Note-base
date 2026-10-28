@@ -45,8 +45,9 @@ It works fully without the cloud; everything is then stored only in the browser 
   Right-click a section for its icon, color and style (Tint, Solid, Outline, Dashed), or the canvas for _Collapse /
   Expand all sections_. A folded bar can be moved with everything in it; search opens it when a hit is inside
 - Text formatting in notes, scenes and job notes: **bold** (⌘B), *italic* (⌘I), ~~strike~~, ==highlight== (⌘⇧H),
-  colored text, big lines and bullets — click the text to get the formatting bar. Stored as plain text with markers
-  (`**bold**`, `==highlight==`, `:red[text]`), so exports and AI tools still read it
+  colored text, big lines and bullets — click the text to edit it in place, still formatted (no `**` marks to see or
+  copy), with the formatting bar. Stored as plain text with markers (`**bold**`, `==highlight==`, `:red[text]`), so
+  exports and AI tools still read it; copying gives clean text
 - Rename any card's header (double-click it, e.g. "Scene 01" → "Hook"); scenes also have a title; text size (XS – XXL)
   and colors from the right-click menu, or A− / A+ in the formatting bar while writing
 - Notes and lists resize in every direction (drag a corner or edge; they never cut off their text and still grow as

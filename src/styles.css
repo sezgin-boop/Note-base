@@ -5557,3 +5557,49 @@ body.touch-sizing {
   top: auto;
   bottom: calc(100% + 6px);
 }
+
+/* ---------- Editing card text in place (formatted, no ** marks) ---------- */
+.rich-editor {
+  position: relative;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+  caret-color: var(--brand);
+}
+.rich-editor.empty::before {
+  position: absolute;
+  pointer-events: none;
+}
+/* Bullets and boxes are drawn by the line itself, so new lines get them too. */
+.rich-editor .rt-dot,
+.rich-editor .rt-box {
+  display: none;
+}
+.rich-editor .rt-li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0.68em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent, var(--text-3));
+}
+.rich-editor .rt-todo::before {
+  width: 13px;
+  height: 13px;
+  left: 1px;
+  top: 0.3em;
+  border-radius: 4px;
+  background: none;
+  border: 1.5px solid var(--border-strong);
+  box-sizing: border-box;
+}
+.rich-editor .rt-todo.done::before {
+  background: var(--green);
+  border-color: var(--green);
+}
+.rich-editor font,
+.rich-editor [style*='color'] {
+  font-weight: 550;
+}

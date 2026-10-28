@@ -38,7 +38,11 @@ function useCatchDictation() {
       [0, 150, 600].forEach((ms) =>
         setTimeout(() => {
           const el = document.activeElement;
-          if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)
+          if (
+            el instanceof HTMLTextAreaElement ||
+            el instanceof HTMLInputElement ||
+            (el instanceof HTMLElement && el.isContentEditable)
+          )
             el.dispatchEvent(new Event('input', { bubbles: true }));
         }, ms),
       );
