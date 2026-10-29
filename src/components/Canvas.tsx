@@ -435,14 +435,19 @@ function useTouchNavigation(
           pan = null;
           return;
         }
-        if (card && !editing && !st.readOnly && !useDraw.getState().tool && !target.closest(HOLD_FROM_NOT)) {
+        // A card moves only once it's selected (tap it first): swiping across cards scrolls the board.
+        const picked = !!card?.classList.contains('selected');
+        if (card && picked && !editing && !st.readOnly && !useDraw.getState().tool && !target.closest(HOLD_FROM_NOT)) {
           const t = e.touches[0];
           hold = { id: card.dataset.id!, x: t.clientX, y: t.clientY, timer: setTimeout(lift, 350), lifted: false };
         }
+        const loose = !!card && !picked && !editing && !useDraw.getState().tool && !target.closest(NOT_FROM);
         pan =
-          !editing && !useDraw.getState().tool && target.closest(PAN_FROM) && !target.closest(NOT_FROM)
+          loose || (!editing && !useDraw.getState().tool && target.closest(PAN_FROM) && !target.closest(NOT_FROM))
             ? { x: e.touches[0].clientX, y: e.touches[0].clientY, vp: rf.getViewport(), moving: false }
             : null;
+        // Keep React Flow from starting to drag the card; a tap still selects it (the click goes through).
+        if (loose) e.stopPropagation();
         return;
       }
       pan = null;

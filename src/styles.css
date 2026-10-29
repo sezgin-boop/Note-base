@@ -5603,3 +5603,11 @@ body.touch-sizing {
 .rich-editor [style*='color'] {
   font-weight: 550;
 }
+
+/* Phones: a card's connection dots only take a touch once the card is selected (tap it first), so
+   swiping across cards always scrolls the board. */
+@media (pointer: coarse) {
+  .react-flow__node:not(.selected) .react-flow__handle {
+    pointer-events: none;
+  }
+}
