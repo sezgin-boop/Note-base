@@ -3,7 +3,8 @@
 //   POST /api/upload?t=…&name=…               → the file as the request body (≤ 4 MB; for scripts / curl)
 //   POST /api/upload?t=…&step=sign&type=…     → an address to send a bigger file to directly
 //   POST /api/upload?t=…&step=done&id=…&type=… → put that file on the board
-// Add &section=<section id or title> to any of them to put the files inside that section.
+// Add &section=<section id or title> to any of them to put the files inside that section, &card=<image card id>
+// to add photos to that card, or &gallery=1 to put all photos from the link into one new image card.
 // Every file becomes an image or video card on the board the link was made for.
 
 import { nanoid } from 'nanoid';
@@ -37,13 +38,18 @@ export default async function handler(req: Request): Promise<Response> {
   const board = await getBoard(link.uid, link.board);
   if (!board) return json({ error: 'The board no longer exists.' }, 404);
 
-  if (req.method === 'GET') return uploadPage(board.name, board.id, token, link.exp, url.searchParams.get('section'));
+  if (req.method === 'GET')
+    return uploadPage(board.name, board.id, token, link.exp, url.searchParams.get('section'), {
+      card: url.searchParams.get('card'),
+      gallery: url.searchParams.get('gallery') === '1',
+    });
   if (req.method !== 'POST') return json({ error: 'Use POST.' }, 405);
 
   const step = url.searchParams.get('step');
   const type = (url.searchParams.get('type') || req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
   const caption = url.searchParams.get('caption')?.slice(0, 300) || undefined;
   const section = url.searchParams.get('section')?.slice(0, 200) || null;
+  const into = { card: url.searchParams.get('card')?.slice(0, 64) || null, gallery: url.searchParams.get('gallery') === '1' };
   if (!uploadKind(type)) return json({ error: `Only images and videos can be uploaded (got "${type || 'unknown'}").` }, 415);
 
   try {
@@ -57,7 +63,7 @@ export default async function handler(req: Request): Promise<Response> {
       const id = url.searchParams.get('id') ?? '';
       if (!/^[\w-]{21}$/.test(id) || !(await mediaExists(id))) return json({ error: 'The file did not arrive.' }, 400);
       const aspect = Number(url.searchParams.get('aspect')) || null;
-      const { node } = await placeUpload(link.uid, link.board, token, { mediaId: id, type, caption, aspect }, section);
+      const { node } = await placeUpload(link.uid, link.board, token, { mediaId: id, type, caption, aspect }, section, into);
       return json({ ok: true, card: node.id, board: board.name });
     }
     // Direct upload: the file is the body.
@@ -78,6 +84,7 @@ export default async function handler(req: Request): Promise<Response> {
       token,
       { mediaId: id, type, caption: caption ?? name, aspect },
       section,
+      into,
     );
     return json({ ok: true, card: node.id, board: board.name, open: `${originOf(req)}/?board=${link.board}` });
   } catch (e) {
@@ -129,11 +136,18 @@ small{display:block;color:var(--muted);font-size:12px;margin-top:14px;text-align
   );
 }
 
-function uploadPage(boardName: string, boardId: string, token: string, exp: number, section: string | null) {
+function uploadPage(
+  boardName: string,
+  boardId: string,
+  token: string,
+  exp: number,
+  section: string | null,
+  into: { card: string | null; gallery: boolean },
+) {
   const minutes = Math.max(1, Math.round((exp - Date.now() / 1000) / 60));
   const body = `<div class="logo">✦</div>
 <h1>Add to “${esc(boardName)}”</h1>
-<p class="muted">Pick photos or videos — they go straight onto the board.</p>
+<p class="muted">${into.card || into.gallery ? 'Pick photos — they go together into one image card.' : 'Pick photos or videos — they go straight onto the board.'}</p>
 <label class="pick" id="pick"><b>📷 Choose photos or videos</b><span>or drop them here · up to 50 MB each</span>
 <input id="file" type="file" accept="image/*,video/*" multiple></label>
 <ul id="list"></ul>
@@ -142,7 +156,8 @@ function uploadPage(boardName: string, boardId: string, token: string, exp: numb
   const script = `
 const T = ${JSON.stringify(token)};
 const S = ${JSON.stringify(section ?? '')};
-const api = (q) => '/api/upload?t=' + encodeURIComponent(T) + '&' + new URLSearchParams(S ? { ...q, section: S } : q);
+const X = ${JSON.stringify(into.card ? { card: into.card } : into.gallery ? { gallery: '1' } : {})};
+const api = (q) => '/api/upload?t=' + encodeURIComponent(T) + '&' + new URLSearchParams({ ...q, ...(S ? { section: S } : {}), ...X });
 const list = document.getElementById('list');
 const aspectOf = (file) => new Promise((res) => {
   if (!file.type.startsWith('image/')) return res(null);

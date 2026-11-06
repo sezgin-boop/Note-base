@@ -1477,8 +1477,15 @@ a.side-btn {
 }
 .caption {
   font-size: 12px;
+  line-height: 1.45;
   color: var(--text-2);
   padding: 4px 8px 0;
+  resize: none;
+  overflow: hidden;
+  flex: none;
+  font-family: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .media-empty {
   flex: 1;

@@ -184,7 +184,7 @@ function toItem(n: CardNode, boardsById: Map<string, OutlineBoard>, opts: Outlin
         icon: '🖼️',
         kind: 'Image',
         title: d.caption,
-        image: media ? { url: media, alt: d.caption || 'Image' } : undefined,
+        image: media ? { url: media, alt: (d.caption || 'Image').replace(/\s+/g, ' ').slice(0, 120) } : undefined,
         meta: d.more?.length ? [`${d.more.length + 1} photos`] : undefined,
         lines: media ? morePhotos(d, opts) : ['(image only on the owner’s device, not uploaded to the cloud)'],
       };

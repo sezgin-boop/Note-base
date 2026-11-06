@@ -6,7 +6,8 @@ import { makeCard, SIZES } from '../src/cards';
 import { applyHidden, collapseFrame, expandFrame, SECTION_LOOKS } from '../src/sections';
 import { parseSkin, PRESETS } from '../src/skins';
 import { boardsToMarkdown } from '../src/share/outline';
-import type { BoardContent, CardData, CardEdge, CardNode, CardType, ProjectStatus } from '../src/types';
+import { appendPhotos, galleryData, galleryOf } from '../src/gallery';
+import type { BoardContent, CardData, CardEdge, CardNode, CardType, MediaRef, ProjectStatus } from '../src/types';
 import { STATUS_LABELS } from '../src/types';
 import { boardComments, changeBoard, getBoard, insertBoard, listBoards, mediaUrl, type BoardRow } from './db';
 import { fetchMedia, type Fetched } from './media';
@@ -320,7 +321,10 @@ const addMediaTool: Tool = {
   description:
     'Add images, videos or web pages to a board from their URLs. Image and video files (jpg, png, webp, gif, mp4, mov…) are ' +
     'downloaded and stored in Notebase; YouTube and Vimeo links become playable video cards; other pages become link cards ' +
-    'with their title. Good for moodboards and reference boards. Up to 20 at a time.',
+    'with their title. Good for moodboards and reference boards. Up to 20 at a time. Several photos can share one ' +
+    'image card (flipped through with arrows): "gallery": true puts all the images in one new card, "card" adds them ' +
+    'to an image card that is already on the board. "text" is the writing under the card (as long as needed; the ' +
+    'card grows with it) — to change it later use update_card with "caption".',
   inputSchema: {
     type: 'object',
     properties: {
@@ -335,6 +339,12 @@ const addMediaTool: Tool = {
           },
           required: ['url'],
         },
+      },
+      gallery: { type: 'boolean', description: 'Put all the images into ONE image card (a gallery). Default false.' },
+      card: { type: 'string', description: 'Id of an image card already on the board: add the images to it as more photos.' },
+      text: {
+        type: 'string',
+        description: 'Text written under the card (with "gallery" or "card"; otherwise use each item\'s caption).',
       },
       section: { type: 'string', description: 'Group them in a section with this title.' },
       collapsed: { type: 'boolean', description: 'Add that section folded into a compact bar.' },
@@ -357,6 +367,52 @@ const addMediaTool: Tool = {
     const failed = fetched.filter((x) => !x.ok) as { ok: false; error: string }[];
     if (!good.length) throw new Error(`Nothing could be added:\n${failed.map((f) => `- ${f.error}`).join('\n')}`);
 
+    const images = good.flatMap(({ f, caption }) => (f.kind === 'image' ? [{ f, caption }] : []));
+    const text = typeof args.text === 'string' ? args.text.slice(0, 8000) : undefined;
+    if ((args.gallery || args.card) && images.length) {
+      const photos: MediaRef[] = images.map(({ f, caption }) => ({ mediaId: f.mediaId, caption: caption ?? f.title }));
+      const others = good.length - images.length;
+      const { result: card } = await changeBoard(ctx.uid, meta.id, (content) => {
+        let node: CardNode;
+        if (args.card) {
+          const found = content.nodes.find((n) => n.id === args.card);
+          if (!found) throw new Error(`No card with id ${args.card} on "${meta.name}". Use read_board to see card ids.`);
+          if (found.type !== 'image')
+            throw new Error(`Card ${args.card} is a ${found.type} card; photos can only go into image cards.`);
+          node = found;
+          node.data = {
+            ...node.data,
+            ...appendPhotos(node.data, photos),
+            ...(text !== undefined ? { caption: text || undefined } : {}),
+          };
+        } else {
+          const at = freeSpot(content);
+          node = makeCard('image', at, { ...galleryData(photos), caption: text ?? photos[0].caption });
+          node.width = 280;
+          const aspect = images[0].f.aspect;
+          node.height = Math.round((aspect ? Math.min(560, Math.max(120, 280 / aspect)) : 200) + 44);
+          content.nodes.push(node);
+          if (args.section) {
+            const frame = makeCard('frame', { x: at.x - 32, y: at.y - 32 }, { title: args.section, color: '#a78bfa' });
+            frame.width = 280 + 64;
+            frame.height = node.height + 64;
+            content.nodes.splice(content.nodes.length - 1, 0, frame);
+          }
+        }
+        for (const k of Object.keys(node.data)) if (node.data[k] === undefined) delete node.data[k];
+        return node;
+      });
+      const count = galleryOf(card.data).length;
+      return (
+        `${args.card ? 'Added' : 'Made one image card with'} ${images.length} photo${images.length > 1 ? 's' : ''}` +
+        `${args.card ? ` to ${describe(card)}` : ` (${describe(card)})`} on "${meta.name}" — it now has ${count} photo${count > 1 ? 's' : ''}.` +
+        (others
+          ? `\nNot added: ${others} item${others > 1 ? 's' : ''} that are not images (add them without "gallery" / "card").`
+          : '') +
+        (failed.length ? `\nNot added:\n${failed.map((f) => `- ${f.error}`).join('\n')}` : '') +
+        `\nOpen: ${boardLink(ctx, meta.id)}`
+      );
+    }
     const { result } = await changeBoard(ctx.uid, meta.id, (content) => {
       const origin = freeSpot(content);
       const withSection = !!args.section || good.length > 3;
@@ -432,7 +488,8 @@ const updateCardTool: Tool = {
   title: 'Edit a card',
   description:
     'Change fields of one card (ids come from read_board): text, title, label (the small header), scene shot / duration / ' +
-    'audio / prompt / number, job client / deadline / fee / status, color, caption, url, tags, publishDate, platform, or a ' +
+    'audio / prompt / number, job client / deadline / fee / status, color, caption (the text under an image or video card — ' +
+    'any length, several lines; the card grows to show it), url, tags, publishDate, platform, or a ' +
     `list's items, or style (the card's whole look: one of ${PRESETS.map((p) => p.id).join(', ')}, a color ` +
     '{"kind":"color","from":"#hex","to":"#hex"} or "default"). Scenes also take hideFrame (true hides the picture area). ' +
     'Sections also take collapsed (true folds the section into a compact bar, false opens it), icon (an ' +
@@ -806,11 +863,19 @@ const uploadLinkTool: Tool = {
     properties: {
       board: BOARD_ARG,
       section: { type: 'string', description: 'Optional: id or title of a section the files should go into.' },
+      card: { type: 'string', description: 'Optional: id of an image card; uploaded photos are added to it as more photos.' },
+      gallery: { type: 'boolean', description: 'Optional: all photos uploaded with this link go into ONE new image card.' },
     },
     required: ['board'],
   },
   async run(args, ctx) {
     const meta = await resolveBoard(ctx, args.board);
+    if (args.card) {
+      const board = await getBoard(ctx.uid, meta.id);
+      const n = board?.content?.nodes.find((c) => c.id === args.card);
+      if (!n) throw new Error(`No card with id ${args.card} on "${meta.name}". Use read_board to see card ids.`);
+      if (n.type !== 'image') throw new Error(`Card ${args.card} is a ${n.type} card; photos can only go into image cards.`);
+    }
     if (args.section) {
       const board = await getBoard(ctx.uid, meta.id);
       findFrame(board?.content ?? { nodes: [], edges: [] }, String(args.section)); // fails early if there is no such section
@@ -818,7 +883,8 @@ const uploadLinkTool: Tool = {
     const token = await seal({ t: 'upload', uid: ctx.uid, board: meta.id, exp: Math.floor(Date.now() / 1000) + 3600 });
     const link =
       `${ctx.origin}/api/upload?t=${encodeURIComponent(token)}` +
-      (args.section ? `&section=${encodeURIComponent(String(args.section))}` : '');
+      (args.section ? `&section=${encodeURIComponent(String(args.section))}` : '') +
+      (args.card ? `&card=${encodeURIComponent(String(args.card))}` : args.gallery ? '&gallery=1' : '');
     return [
       `Upload link for "${meta.name}" (valid 60 minutes).`,
       '',
@@ -827,8 +893,13 @@ const uploadLinkTool: Tool = {
       '',
       'From a code sandbox, one request per file (max 4 MB each — shrink bigger photos first, e.g. to 2560 px JPEG):',
       `curl -sS -X POST --data-binary @"/path/to/photo.jpg" -H "content-type: image/jpeg" "${link}&name=photo.jpg"`,
-      'Optional: &caption=… . Each file becomes an image / video card; files from this link are laid out together' +
-        (args.section ? ', inside the section.' : '. Add &section=<section id or title> to put them in a section.'),
+      args.card
+        ? 'Each photo is added to that image card (videos become their own cards).'
+        : args.gallery
+          ? 'All photos from this link go into one image card (videos become their own cards).'
+          : 'Optional: &caption=… . Each file becomes an image / video card; files from this link are laid out together' +
+            (args.section ? ', inside the section.' : '. Add &section=<section id or title> to put them in a section.'),
+      'To write text under a card afterwards: update_card with changes {"caption": "…"}.',
       `Open the board: ${boardLink(ctx, meta.id)}`,
     ].join('\n');
   },

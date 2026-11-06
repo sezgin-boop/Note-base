@@ -1,7 +1,7 @@
 import type { NodeProps, XYPosition } from '@xyflow/react';
 import { makeCard, SIZES } from '../cards';
 import { CloudUpload, ExternalLink, Image as ImageIcon, ImagePlus, Link2, Maximize2, Trash2, Upload } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getMediaUrl, hostname, saveMedia, useMediaUrl, usePreview, youtubeId } from '../db';
 import { useStore } from '../store';
 import { appendPhotos, galleryOf, removePhoto } from '../gallery';
@@ -93,12 +93,55 @@ function MissingMedia({ id }: { id: string }) {
   );
 }
 
+/**
+ * The text under a photo or video. It wraps onto as many lines as it needs and the card grows with
+ * it (a video card sizes itself; an image card's height is stretched by what the caption gained).
+ */
 export function Caption({ id, value }: { id: string; value?: string }) {
   const updateData = useStore((s) => s.updateData);
+  const readOnly = useStore((s) => s.readOnly);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const fit = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const h = el.scrollHeight;
+    el.style.height = `${h}px`;
+    if (useStore.getState().readOnly) return;
+    const s = useStore.getState();
+    const node = s.nodes.find((n) => n.id === id);
+    if (!node || node.height === undefined) return; // sizes itself (videos)
+    const css = getComputedStyle(el);
+    const oneLine = Math.round(parseFloat(css.lineHeight) + parseFloat(css.paddingTop) + parseFloat(css.paddingBottom));
+    const had = node.data.capH ?? oneLine;
+    // While typing here the card follows the text both ways; otherwise (text changed on another
+    // device or by Claude) it only grows, so two screens that wrap a little differently can't
+    // keep resizing it back and forth.
+    const typing = document.activeElement === el;
+    if (h === had || (!typing && h < had)) return;
+    const height = Math.max(90, Math.round(node.height + h - had));
+    s.setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, height, data: { ...n.data, capH: h } } : n)));
+  }, [id]);
+  useLayoutEffect(fit, [value, fit]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let width = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      fit();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit]);
   return (
-    <input
+    <textarea
+      ref={ref}
       className="nodrag caption"
+      rows={1}
       value={value ?? ''}
+      readOnly={readOnly}
       placeholder="Add a caption"
       onChange={(e) => updateData(id, { caption: e.target.value })}
     />

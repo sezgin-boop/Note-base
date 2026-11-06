@@ -3,6 +3,7 @@
 // by Claude's own code sandbox (a plain POST).
 
 import { makeCard } from '../src/cards';
+import { appendPhotos } from '../src/gallery';
 import type { CardNode } from '../src/types';
 import { changeBoard } from './db';
 import { sha256b64url } from './seal';
@@ -26,9 +27,22 @@ export async function placeUpload(
   f: { mediaId: string; type: string; caption?: string; aspect?: number | null },
   /** Put it inside this section (id or title) instead of the link's own grid. */
   section?: string | null,
+  /** Photos go into one image card: `card` (an id) is an existing one; `gallery` makes one from the link's first photo. */
+  into?: { card?: string | null; gallery?: boolean },
 ) {
   const batch = (await sha256b64url(token)).slice(0, 10);
   const { result, board } = await changeBoard(uid, boardId, (content) => {
+    if (uploadKind(f.type) === 'image' && (into?.card || into?.gallery)) {
+      const target = into.card
+        ? content.nodes.find((n) => n.id === into.card && n.type === 'image')
+        : content.nodes.find((n) => n.type === 'image' && n.data.batch === batch);
+      if (into.card && !target) throw new Error('That image card is no longer on the board.');
+      if (target) {
+        target.data = { ...target.data, ...appendPhotos(target.data, [{ mediaId: f.mediaId, caption: f.caption }]) };
+        for (const k of Object.keys(target.data)) if (target.data[k] === undefined) delete target.data[k];
+        return target;
+      }
+    }
     // Into a section: the next free spot inside it (the section grows to fit).
     if (section) {
       const frame = findFrame(content, section);

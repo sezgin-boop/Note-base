@@ -78,6 +78,7 @@ It works fully without the cloud; everything is then stored only in the browser 
 - Jobs panel (⌘J): every job across all boards, sorted by due date, with overdue count and paid / awaiting payment totals
 - Search (⌘K) across all boards, cards and tags
 - Boards inside boards: drag a board in the sidebar onto another board (or onto the open board's canvas), drop a board card onto another board card, or use the folder button beside a board (“Move into…”, handy on phones). The board becomes a sub-board and its card moves onto the new parent; drop it on the empty list to bring it back to the top level. ⌘Z undoes a move
+- Image and video captions wrap onto as many lines as they need and the card grows downwards with them (the photo keeps its size); resize the card as usual
 - Find on this board (⌘F or the magnifier in the top bar): searches every text on the open board — notes, lists, captions, scene audio / prompts, comments, tags, even folded sections — and jumps to the best match as you type, so typing a product code takes you straight to its card. ↵ / ⇧↵ step through the matches
 
 **Capture & export**
@@ -183,8 +184,11 @@ your boards as a connector. It needs the cloud set up first.
 Changes show up in the app within about 30 seconds; Claude also gives you a link that opens the board.
 
 What it can do: `list_boards`, `read_board`, `search`, `add_cards`, `add_media` (images and videos from links are copied
-into your storage; YouTube / Vimeo become video cards; other pages become link cards), `update_card`, `move_cards`,
-`arrange_section`, `delete_cards`, `create_board`, `get_upload_link`.
+into your storage; YouTube / Vimeo become video cards; other pages become link cards; `gallery: true` puts several
+photos into one image card, `card: <id>` adds photos to an image card already on the board, `text` writes under it),
+`update_card` (e.g. `caption`: the text under an image or video, any length — the card grows with it), `move_cards`,
+`arrange_section`, `delete_cards`, `create_board`, `get_upload_link` (also with `card` or `gallery` so uploaded photos
+land in one image card).
 
 **Reorganising without losing anything:** cards are moved, never deleted and re-added, so their ids, client comments,
 video review notes and arrows stay. `read_board` shows each card's `x, y, w, h` and section id, and each section's bounds.

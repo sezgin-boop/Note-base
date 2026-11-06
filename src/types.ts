@@ -89,6 +89,8 @@ export interface CardData extends Record<string, unknown> {
   textSize?: TextSize;
   /** Height a note / list was stretched to (it still grows when the text needs more room). */
   minH?: number;
+  /** Height of an image card's caption that the card's height already makes room for (it grows with the caption). */
+  capH?: number;
   /** Heading size in px, set by dragging its corner. */
   fontSize?: number;
   // planning (any card)
